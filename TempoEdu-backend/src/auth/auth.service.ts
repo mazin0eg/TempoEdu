@@ -17,11 +17,11 @@ export class AuthService {
     return this.jwtService.sign({ sub: user.id, email: user.email });
   }
 
-  async register(email: string, password: string, name?: string, bio?: string) {
+  async register(email: string, password: string, name: string, birthDate: string, bio?: string) {
     const saltRounds = Number(process.env.BCRYPT_ROUNDS || 10);
     const passwordHash = await bcrypt.hash(password, saltRounds);
     const user = await this.usersService.create(email, passwordHash);
-    await this.profilesService.createForUser(user.id, name, bio);
+    await this.profilesService.createForUser(user.id, name, new Date(birthDate), bio);
     const accessToken = this.signToken(user);
     return { user: { id: user.id, email: user.email }, accessToken };
   }

@@ -8,8 +8,11 @@ export class Profile {
   @Prop({ required: true })
   userId: string; // SQL user UUID
 
-  @Prop()
-  name?: string;
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ required: true })
+  birthDate: Date;
 
   @Prop()
   bio?: string;

@@ -9,8 +9,8 @@ export class ProfilesService {
     @InjectModel(Profile.name) private readonly model: Model<ProfileDocument>,
   ) {}
 
-  async createForUser(userId: string, name?: string, bio?: string) {
-    const created = new this.model({ userId, name, bio });
+  async createForUser(userId: string, name: string, birthDate: Date, bio?: string) {
+    const created = new this.model({ userId, name, birthDate, bio });
     return created.save();
   }
 

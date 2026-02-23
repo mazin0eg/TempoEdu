@@ -1,38 +1,43 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ConfigModule } from '@nestjs/config';
-import { UsersModule } from './users/users.module';
-import { AuthModule } from './auth/auth.module';
-import { ProfilesModule } from './profiles/profiles.module';
-import { StorageModule } from './storage/storage.module';
-import { ProfileMetaModule } from './profile-meta/profile-meta.module';
-import { SkillCertificationsModule } from './skill-certifications/skill-certifications.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
+import { SkillsModule } from './modules/skills/skills.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { CreditsModule } from './modules/credits/credits.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: Number(process.env.DB_PORT || 5432),
-      username: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-      database: process.env.DB_NAME || 'tempoedu',
-      autoLoadEntities: true,
-      synchronize: process.env.DB_SYNC === 'false' ? false : true,
+    // Global configuration
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
     }),
-    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/tempoedu'),
-    UsersModule,
+
+    // MongoDB connection
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGODB_URI'),
+      }),
+    }),
+
+    // Feature modules
     AuthModule,
-    ProfilesModule,
-    StorageModule,
-    ProfileMetaModule,
-    SkillCertificationsModule,
+    UsersModule,
+    SkillsModule,
+    SessionsModule,
+    ReviewsModule,
+    CreditsModule,
+    ChatModule,
+    NotificationsModule,
+    AdminModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

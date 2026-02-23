@@ -1,8 +1,7 @@
-# Compiled output
+# compiled output
 /dist
 /node_modules
 /build
-/tmp
 
 # Logs
 logs
@@ -28,26 +27,30 @@ lerna-debug.log*
 *.launch
 .settings/
 *.sublime-workspace
+
+# IDE - VSCode
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# Environment variables
+# dotenv environment variable files
 .env
+.env.development.local
+.env.test.local
+.env.production.local
 .env.local
-.env.development
-.env.test
-.env.production
-.env*.local
 
-# Temp directories
+# temp directory
 .temp
 .tmp
 
-# Docker volumes (optional)
-# /data
-# /postgres-data
-# /mongo-data
-# /minio-data
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

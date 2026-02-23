@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { Role } from '../../common/decorators/roles.decorator';
+import { Role } from '../../../common/decorators/roles.decorator';
 
 export type UserDocument = User & Document;
 
@@ -71,7 +71,7 @@ UserSchema.virtual('fullName').get(function (this: UserDocument) {
 
 UserSchema.set('toJSON', {
   virtuals: true,
-  transform: (_doc, ret) => {
+  transform: (_doc: any, ret: any) => {
     delete ret.password;
     delete ret.__v;
     return ret;

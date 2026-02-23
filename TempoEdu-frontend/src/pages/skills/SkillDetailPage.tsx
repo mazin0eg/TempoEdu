@@ -19,7 +19,7 @@ import type { Skill, Review } from '../../types';
 import { CATEGORY_COLORS } from '../../lib/constants';
 
 export default function SkillDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { skillId: id } = useParams<{ skillId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
 

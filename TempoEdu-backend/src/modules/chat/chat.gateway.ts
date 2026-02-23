@@ -28,12 +28,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
-  private readonly connectedUsers = new Map<string, string>(); // userId -> socketId
+  private connectedUsers : Map<string,string>; // userId -> socketId
 
   constructor(
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) {
+    this.connectedUsers  = new Map<string, string>();
+  }
 
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
     try {

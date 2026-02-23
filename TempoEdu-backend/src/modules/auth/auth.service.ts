@@ -37,7 +37,7 @@ export class AuthService {
     });
 
     // Grant initial credits
-    await this.creditsService.grantInitialCredits(user._id as string);
+    await this.creditsService.grantInitialCredits(user._id.toString());
 
     const accessToken = this.generateToken(user);
 

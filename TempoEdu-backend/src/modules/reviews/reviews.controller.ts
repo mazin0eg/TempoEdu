@@ -11,7 +11,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { CurrentUser } from '../../common/decorators';
-import { UserDocument } from '../users/schemas/user.schema';
+import type { UserDocument } from '../users/schemas/user.schema';
 
 @ApiTags('Reviews')
 @Controller('reviews')
@@ -26,7 +26,7 @@ export class ReviewsController {
     @CurrentUser() user: UserDocument,
     @Body() createReviewDto: CreateReviewDto,
   ) {
-    return this.reviewsService.create(user._id as string, createReviewDto);
+    return this.reviewsService.create(user._id.toString(), createReviewDto);
   }
 
   @Get('user/:userId')

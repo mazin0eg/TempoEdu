@@ -8,7 +8,7 @@ import {
 } from '@nestjs/swagger';
 import { CreditsService } from './credits.service';
 import { CurrentUser } from '../../common/decorators';
-import { UserDocument } from '../users/schemas/user.schema';
+import type { UserDocument } from '../users/schemas/user.schema';
 
 @ApiTags('Credits')
 @Controller('credits')
@@ -20,7 +20,7 @@ export class CreditsController {
   @Get('balance')
   @ApiOperation({ summary: 'Get current credit balance' })
   async getBalance(@CurrentUser() user: UserDocument) {
-    const balance = await this.creditsService.getBalance(user._id as string);
+    const balance = await this.creditsService.getBalance(user._id.toString());
     return { balance };
   }
 
@@ -34,7 +34,7 @@ export class CreditsController {
     @Query('limit') limit?: number,
   ) {
     return this.creditsService.getTransactionHistory(
-      user._id as string,
+      user._id.toString(),
       page,
       limit,
     );

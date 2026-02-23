@@ -18,7 +18,7 @@ import {
 import { SessionsService } from './sessions.service';
 import { CreateSessionDto, UpdateSessionDto } from './dto';
 import { CurrentUser } from '../../common/decorators';
-import { UserDocument } from '../users/schemas/user.schema';
+import type { UserDocument } from '../users/schemas/user.schema';
 import { SessionStatus } from './schemas/session.schema';
 
 @ApiTags('Sessions')
@@ -34,7 +34,7 @@ export class SessionsController {
     @CurrentUser() user: UserDocument,
     @Body() createSessionDto: CreateSessionDto,
   ) {
-    return this.sessionsService.create(user._id as string, createSessionDto);
+    return this.sessionsService.create(user._id.toString(), createSessionDto);
   }
 
   @Get('my')
@@ -44,7 +44,7 @@ export class SessionsController {
     @CurrentUser() user: UserDocument,
     @Query('status') status?: SessionStatus,
   ) {
-    return this.sessionsService.findByUser(user._id as string, status);
+    return this.sessionsService.findByUser(user._id.toString(), status);
   }
 
   @Get(':id')
@@ -62,7 +62,7 @@ export class SessionsController {
   ) {
     return this.sessionsService.updateStatus(
       id,
-      user._id as string,
+      user._id.toString(),
       updateSessionDto,
     );
   }

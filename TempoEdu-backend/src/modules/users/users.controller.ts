@@ -17,7 +17,7 @@ import {
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CurrentUser } from '../../common/decorators';
-import { UserDocument } from './schemas/user.schema';
+import type { UserDocument } from './schemas/user.schema';
 
 @ApiTags('Users')
 @Controller('users')
@@ -51,7 +51,7 @@ export class UsersController {
   @Get('me')
   @ApiOperation({ summary: 'Get current user' })
   async getMe(@CurrentUser() user: UserDocument) {
-    return this.usersService.findById(user._id as string);
+    return this.usersService.findById(user._id.toString());
   }
 
   @Get(':id')
@@ -66,6 +66,6 @@ export class UsersController {
     @CurrentUser() user: UserDocument,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.usersService.updateProfile(user._id as string, updateUserDto);
+    return this.usersService.updateProfile(user._id.toString(), updateUserDto);
   }
 }

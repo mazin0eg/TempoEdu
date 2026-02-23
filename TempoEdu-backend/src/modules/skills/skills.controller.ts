@@ -19,7 +19,7 @@ import {
 import { SkillsService, SkillFilters } from './skills.service';
 import { CreateSkillDto, UpdateSkillDto } from './dto';
 import { CurrentUser } from '../../common/decorators';
-import { UserDocument } from '../users/schemas/user.schema';
+import type { UserDocument } from '../users/schemas/user.schema';
 import { SkillCategory, SkillLevel } from './schemas/skill.schema';
 
 @ApiTags('Skills')
@@ -35,7 +35,7 @@ export class SkillsController {
     @CurrentUser() user: UserDocument,
     @Body() createSkillDto: CreateSkillDto,
   ) {
-    return this.skillsService.create(user._id as string, createSkillDto);
+    return this.skillsService.create(user._id.toString(), createSkillDto);
   }
 
   @Get()
@@ -68,13 +68,13 @@ export class SkillsController {
   @Get('suggestions')
   @ApiOperation({ summary: 'Get matching skill suggestions' })
   async getSuggestions(@CurrentUser() user: UserDocument) {
-    return this.skillsService.getMatchingSuggestions(user._id as string);
+    return this.skillsService.getMatchingSuggestions(user._id.toString());
   }
 
   @Get('my')
   @ApiOperation({ summary: 'Get my skills' })
   async getMySkills(@CurrentUser() user: UserDocument) {
-    return this.skillsService.findByUser(user._id as string);
+    return this.skillsService.findByUser(user._id.toString());
   }
 
   @Get(':id')
@@ -90,7 +90,7 @@ export class SkillsController {
     @CurrentUser() user: UserDocument,
     @Body() updateSkillDto: UpdateSkillDto,
   ) {
-    return this.skillsService.update(id, user._id as string, updateSkillDto);
+    return this.skillsService.update(id, user._id.toString(), updateSkillDto);
   }
 
   @Delete(':id')
@@ -99,6 +99,6 @@ export class SkillsController {
     @Param('id') id: string,
     @CurrentUser() user: UserDocument,
   ) {
-    return this.skillsService.remove(id, user._id as string);
+    return this.skillsService.remove(id, user._id.toString());
   }
 }

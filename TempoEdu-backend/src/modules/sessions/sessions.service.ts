@@ -161,7 +161,7 @@ export class SessionsService {
           (session.requester as any)._id.toString(),
           (session.provider as any)._id.toString(),
           session.duration,
-          session._id as string,
+          session._id.toString(),
         );
 
         // Notify both

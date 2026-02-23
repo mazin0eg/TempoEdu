@@ -16,7 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { CurrentUser } from '../../common/decorators';
-import { UserDocument } from '../users/schemas/user.schema';
+import type { UserDocument } from '../users/schemas/user.schema';
 
 @ApiTags('Chat')
 @Controller('chat')
@@ -28,7 +28,7 @@ export class ChatController {
   @Get('conversations')
   @ApiOperation({ summary: 'Get all conversations' })
   async getConversations(@CurrentUser() user: UserDocument) {
-    return this.chatService.getUserConversations(user._id as string);
+    return this.chatService.getUserConversations(user._id.toString());
   }
 
   @Post('conversations')
@@ -38,7 +38,7 @@ export class ChatController {
     @Body('participantId') participantId: string,
   ) {
     return this.chatService.getOrCreateConversation(
-      user._id as string,
+      user._id.toString(),
       participantId,
     );
   }
@@ -59,7 +59,7 @@ export class ChatController {
   @ApiOperation({ summary: 'Get unread message count' })
   async getUnreadCount(@CurrentUser() user: UserDocument) {
     const count = await this.chatService.getUnreadCount(
-      user._id as string,
+      user._id.toString(),
     );
     return { unreadCount: count };
   }

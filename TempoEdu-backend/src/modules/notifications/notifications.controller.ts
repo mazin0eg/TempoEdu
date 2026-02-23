@@ -15,7 +15,7 @@ import {
 } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { CurrentUser } from '../../common/decorators';
-import { UserDocument } from '../users/schemas/user.schema';
+import type { UserDocument } from '../users/schemas/user.schema';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -36,7 +36,7 @@ export class NotificationsController {
     @Query('limit') limit?: number,
   ) {
     return this.notificationsService.findByUser(
-      user._id as string,
+      user._id.toString(),
       page,
       limit,
     );
@@ -46,7 +46,7 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Get unread notification count' })
   async getUnreadCount(@CurrentUser() user: UserDocument) {
     const count = await this.notificationsService.getUnreadCount(
-      user._id as string,
+      user._id.toString(),
     );
     return { unreadCount: count };
   }
@@ -61,7 +61,7 @@ export class NotificationsController {
   @Patch('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read' })
   async markAllAsRead(@CurrentUser() user: UserDocument) {
-    await this.notificationsService.markAllAsRead(user._id as string);
+    await this.notificationsService.markAllAsRead(user._id.toString());
     return { message: 'All notifications marked as read' };
   }
 }

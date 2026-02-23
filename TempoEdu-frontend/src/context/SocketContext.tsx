@@ -46,7 +46,6 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     return () => {
       newSocket.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, token]);
 
   return (

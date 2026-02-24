@@ -34,7 +34,7 @@ export default function SessionsPage() {
       setLoading(false);
     }
   };
-
+  
   useEffect(() => {
     fetchSessions();
   }, [activeTab]);

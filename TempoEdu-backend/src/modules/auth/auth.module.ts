@@ -20,7 +20,7 @@ import { CreditsModule } from '../credits/credits.module';
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET')!,
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN', '7d') as StringValue,
+          expiresIn: configService.get<StringValue>('JWT_EXPIRES_IN', '7d'),
         },
       }),
     }),

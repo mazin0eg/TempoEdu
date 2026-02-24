@@ -9,7 +9,7 @@ import {
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto } from './dto';
 import { CurrentUser } from '../../common/decorators';
-import type { UserDocument } from '../users/schemas/user.schema';
+import { UserDocument } from '../users/schemas/user.schema';
 
 @ApiTags('Auth')
 @Controller('auth')

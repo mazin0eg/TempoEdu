@@ -6,6 +6,7 @@ import {
   Patch,
   Post,
   Query,
+  Sse,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -47,6 +48,7 @@ export class SessionsController {
     return this.sessionsService.findByUser(user._id.toString(), status);
   }
 
+  
   @Get(':id')
   @ApiOperation({ summary: 'Get session by ID' })
   async findById(@Param('id') id: string) {

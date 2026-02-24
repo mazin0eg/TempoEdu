@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { randomUUID } from 'crypto';
 import {
   Session,
   SessionDocument,
@@ -116,6 +117,7 @@ export class SessionsService {
     // Handle status transitions
     if (updateDto.status === SessionStatus.ACCEPTED && isProvider) {
       session.status = SessionStatus.ACCEPTED;
+      session.roomId = randomUUID();
 
       await this.notificationsService.create({
         recipient: (session.requester as any)._id.toString(),

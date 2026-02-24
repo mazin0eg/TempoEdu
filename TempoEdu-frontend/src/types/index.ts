@@ -42,6 +42,7 @@ export interface Session {
   status: SessionStatus;
   message: string;
   meetingLink: string;
+  roomId: string;
   requesterConfirmed: boolean;
   providerConfirmed: boolean;
   completedAt: string;

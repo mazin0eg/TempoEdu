@@ -37,6 +37,9 @@ export class Session {
   @Prop({ default: '' })
   meetingLink: string;
 
+  @Prop({ default: '' })
+  roomId: string;
+
   @Prop()
   completedAt: Date;
 

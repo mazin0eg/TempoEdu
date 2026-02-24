@@ -13,6 +13,7 @@ import SkillsPage from './pages/skills/SkillsPage';
 import MySkillsPage from './pages/skills/MySkillsPage';
 import SkillDetailPage from './pages/skills/SkillDetailPage';
 import SessionsPage from './pages/sessions/SessionsPage';
+import VideoCallPage from './pages/sessions/VideoCallPage';
 import ChatPage from './pages/chat/ChatPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import ProfilePage from './pages/profile/ProfilePage';
@@ -44,6 +45,10 @@ export default function App() {
               <Route path="/skills/:skillId" element={<SkillDetailPage />} />
               <Route path="/my-skills" element={<MySkillsPage />} />
               <Route path="/sessions" element={<SessionsPage />} />
+              <Route
+                path="/sessions/:sessionId/call"
+                element={<VideoCallPage />}
+              />
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/chat/:conversationId" element={<ChatPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />

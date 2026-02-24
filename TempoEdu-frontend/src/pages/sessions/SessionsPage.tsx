@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Clock, User as UserIcon } from 'lucide-react';
+import { Calendar, Clock, User as UserIcon, Video } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { sessionsApi } from '../../services/sessions.service';
@@ -190,6 +190,15 @@ export default function SessionsPage() {
                     )}
                     {session.status === 'accepted' && (
                       <>
+                        {session.roomId && (
+                          <Link
+                            to={`/sessions/${session._id}/call`}
+                            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                          >
+                            <Video className="h-4 w-4" />
+                            Join Call
+                          </Link>
+                        )}
                         <button
                           onClick={() =>
                             handleAction(session._id, 'completed')

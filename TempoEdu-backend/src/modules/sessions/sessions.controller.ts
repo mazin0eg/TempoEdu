@@ -1,0 +1,66 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { SessionsService } from './sessions.service';
+import { CreateSessionDto, UpdateSessionDto } from './dto';
+import { Auth, CurrentUser } from '../../common/decorators';
+import type { UserDocument } from '../users/schemas/user.schema';
+import { SessionStatus } from './schemas/session.schema';
+
+@ApiTags('Sessions')
+@Controller('sessions')
+@Auth()
+export class SessionsController {
+  constructor(private readonly sessionsService: SessionsService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Create a new session request' })
+  async create(
+    @CurrentUser() user: UserDocument,
+    @Body() createSessionDto: CreateSessionDto,
+  ) {
+    return this.sessionsService.create(user._id.toString(), createSessionDto);
+  }
+
+  @Get('my')
+  @ApiOperation({ summary: 'Get my sessions' })
+  @ApiQuery({ name: 'status', required: false, enum: SessionStatus })
+  async getMySessions(
+    @CurrentUser() user: UserDocument,
+    @Query('status') status?: SessionStatus,
+  ) {
+    return this.sessionsService.findByUser(user._id.toString(), status);
+  }
+
+  
+  @Get(':id')
+  @ApiOperation({ summary: 'Get session by ID' })
+  async findById(@Param('id') id: string) {
+    return this.sessionsService.findById(id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update session status' })
+  async updateStatus(
+    @Param('id') id: string,
+    @CurrentUser() user: UserDocument,
+    @Body() updateSessionDto: UpdateSessionDto,
+  ) {
+    return this.sessionsService.updateStatus(
+      id,
+      user._id.toString(),
+      updateSessionDto,
+    );
+  }
+}

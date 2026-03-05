@@ -1,12 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { Star, Coins, MapPin, Globe, ArrowLeft, MessageSquare } from 'lucide-react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import {
+  Star,
+  Globe,
+  ArrowLeft,
+  MessageSquare,
+  GraduationCap,
+  BookOpen,
+  Calendar,
+  Award,
+  Users,
+} from 'lucide-react';
+import { format } from 'date-fns';
 import { usersApi } from '../../services/users.service';
 import { skillsApi } from '../../services/skills.service';
+import { reviewsApi } from '../../services/reviews.service';
 import { chatApi } from '../../services/chat.service';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import type { User, Skill } from '../../types';
+import type { User, Skill, Review } from '../../types';
+import { CATEGORY_COLORS } from '../../lib/constants';
 
 export default function UserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
@@ -14,24 +26,28 @@ export default function UserDetailPage() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<User | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) return;
-    const fetchUser = async () => {
+    const fetchData = async () => {
       try {
-        const { data } = await usersApi.getById(userId);
-        setProfile(data.data);
-        // Fetch that user's skills
-        const sRes = await skillsApi.getAll({ owner: userId });
-        setSkills(sRes.data.data.skills);
+        const [userRes, skillsRes, reviewsRes] = await Promise.all([
+          usersApi.getById(userId),
+          skillsApi.getAll({ owner: userId }),
+          reviewsApi.getByUser(userId),
+        ]);
+        setProfile(userRes.data.data);
+        setSkills(skillsRes.data.data.skills);
+        setReviews(reviewsRes.data.data);
       } catch {
         /* silent */
       } finally {
         setLoading(false);
       }
     };
-    fetchUser();
+    fetchData();
   }, [userId]);
 
   const handleStartChat = async () => {
@@ -72,126 +88,258 @@ export default function UserDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Back
       </Link>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Profile Card */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 text-center">
-          <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-indigo-100 text-2xl font-bold text-indigo-600">
+      {/* ── Profile Header ── */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+          {/* Avatar */}
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-3xl font-bold text-indigo-600">
             {profile.firstName[0]}
             {profile.lastName[0]}
           </div>
-          <h1 className="text-xl font-bold text-gray-900">
-            {profile.firstName} {profile.lastName}
-          </h1>
 
-          <div className="mt-3 flex justify-center gap-4">
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 text-amber-600">
-                <Star className="h-4 w-4 fill-amber-400" />
-                <span className="font-semibold">
-                  {profile.reputationScore?.toFixed(1) || '0.0'}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500">
-                ({profile.totalReviews} reviews)
+          {/* Info */}
+          <div className="flex-1 text-center sm:text-left">
+            <h1 className="text-2xl font-bold text-gray-900">
+              {profile.firstName} {profile.lastName}
+            </h1>
+
+            {profile.bio && (
+              <p className="mt-2 max-w-2xl text-sm text-gray-600">
+                {profile.bio}
               </p>
-            </div>
+            )}
+
+            {profile.languages && profile.languages.length > 0 && (
+              <div className="mt-3 flex flex-wrap justify-center gap-1.5 sm:justify-start">
+                {profile.languages.map((lang) => (
+                  <span
+                    key={lang}
+                    className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600"
+                  >
+                    <Globe className="h-3 w-3" />
+                    {lang}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Action */}
+            {me?._id !== profile._id && (
+              <button
+                onClick={handleStartChat}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Send Message
+              </button>
+            )}
           </div>
+        </div>
+      </div>
 
-          {profile.bio && (
-            <p className="mt-4 text-sm text-gray-600">{profile.bio}</p>
-          )}
+      {/* ── Stats Cards ── */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
+          <div className="mx-auto mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+            <Star className="h-5 w-5 text-amber-600" />
+          </div>
+          <p className="text-xl font-bold text-gray-900">
+            {profile.reputationScore?.toFixed(1) || '0.0'}
+          </p>
+          <p className="text-xs text-gray-500">Rating</p>
+        </div>
 
-          {profile.languages && profile.languages.length > 0 && (
-            <div className="mt-4 flex flex-wrap justify-center gap-1">
-              {profile.languages.map((lang) => (
-                <span
-                  key={lang}
-                  className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600"
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
+          <div className="mx-auto mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+            <Award className="h-5 w-5 text-blue-600" />
+          </div>
+          <p className="text-xl font-bold text-gray-900">
+            {profile.totalReviews || 0}
+          </p>
+          <p className="text-xs text-gray-500">Reviews</p>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
+          <div className="mx-auto mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100">
+            <GraduationCap className="h-5 w-5 text-indigo-600" />
+          </div>
+          <p className="text-xl font-bold text-gray-900">{skills.length}</p>
+          <p className="text-xs text-gray-500">Skills</p>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
+          <div className="mx-auto mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+            <Calendar className="h-5 w-5 text-green-600" />
+          </div>
+          <p className="text-xl font-bold text-gray-900">
+            {format(new Date(profile.createdAt), 'MMM yyyy')}
+          </p>
+          <p className="text-xs text-gray-500">Member since</p>
+        </div>
+      </div>
+
+      {/* ── Skills Offered ── */}
+      {offers.length > 0 && (
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <GraduationCap className="h-5 w-5 text-indigo-600" />
+            <h2 className="text-lg font-semibold text-gray-900">
+              Skills Offered
+            </h2>
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+              {offers.length}
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {offers.map((skill) => (
+              <Link
+                key={skill._id}
+                to={`/skills/${skill._id}`}
+                className="rounded-xl border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+              >
+                <h3 className="font-semibold text-gray-900">{skill.name}</h3>
+                {skill.description && (
+                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                    {skill.description}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[skill.category]}`}
+                  >
+                    {skill.category}
+                  </span>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                    {skill.level}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Skills Wanted ── */}
+      {requests.length > 0 && (
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-orange-600" />
+            <h2 className="text-lg font-semibold text-gray-900">
+              Skills Wanted
+            </h2>
+            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+              {requests.length}
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {requests.map((skill) => (
+              <Link
+                key={skill._id}
+                to={`/skills/${skill._id}`}
+                className="rounded-xl border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+              >
+                <h3 className="font-semibold text-gray-900">{skill.name}</h3>
+                {skill.description && (
+                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                    {skill.description}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[skill.category]}`}
+                  >
+                    {skill.category}
+                  </span>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                    {skill.level}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {offers.length === 0 && requests.length === 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white py-12 text-center">
+          <GraduationCap className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+          <p className="text-gray-500">No skills listed yet</p>
+        </div>
+      )}
+
+      {/* ── Reviews ── */}
+      <div>
+        <div className="mb-3 flex items-center gap-2">
+          <Users className="h-5 w-5 text-amber-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Reviews</h2>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+            {reviews.length}
+          </span>
+        </div>
+
+        {reviews.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-white py-12 text-center">
+            <Star className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+            <p className="text-gray-500">No reviews yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {reviews.map((review) => {
+              const reviewer =
+                typeof review.reviewer === 'object' ? review.reviewer : null;
+              return (
+                <div
+                  key={review._id}
+                  className="rounded-xl border border-gray-200 bg-white p-4"
                 >
-                  <Globe className="mr-1 inline h-3 w-3" />
-                  {lang}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {me?._id !== profile._id && (
-            <button
-              onClick={handleStartChat}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Send Message
-            </button>
-          )}
-        </div>
-
-        {/* Skills */}
-        <div className="lg:col-span-2 space-y-6">
-          {offers.length > 0 && (
-            <div>
-              <h2 className="mb-3 text-lg font-semibold text-gray-900">
-                Skills Offered
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {offers.map((skill) => (
-                  <Link
-                    key={skill._id}
-                    to={`/skills/${skill._id}`}
-                    className="rounded-xl border border-gray-200 bg-white p-4 hover:shadow-md transition-shadow"
-                  >
-                    <h3 className="font-semibold text-gray-900">
-                      {skill.name}
-                    </h3>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                      <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-indigo-700">
-                        {skill.category}
-                      </span>
-                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">
-                        {skill.level}
-                      </span>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      {reviewer && (
+                        <Link
+                          to={`/users/${reviewer._id}`}
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600 hover:bg-gray-200"
+                        >
+                          {reviewer.firstName[0]}
+                          {reviewer.lastName[0]}
+                        </Link>
+                      )}
+                      <div>
+                        {reviewer && (
+                          <Link
+                            to={`/users/${reviewer._id}`}
+                            className="text-sm font-semibold text-gray-900 hover:text-indigo-600"
+                          >
+                            {reviewer.firstName} {reviewer.lastName}
+                          </Link>
+                        )}
+                        <p className="text-xs text-gray-400">
+                          {format(new Date(review.createdAt), 'MMM d, yyyy')}
+                        </p>
+                      </div>
                     </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {requests.length > 0 && (
-            <div>
-              <h2 className="mb-3 text-lg font-semibold text-gray-900">
-                Skills Wanted
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {requests.map((skill) => (
-                  <Link
-                    key={skill._id}
-                    to={`/skills/${skill._id}`}
-                    className="rounded-xl border border-gray-200 bg-white p-4 hover:shadow-md transition-shadow"
-                  >
-                    <h3 className="font-semibold text-gray-900">
-                      {skill.name}
-                    </h3>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                      <span className="rounded bg-orange-100 px-1.5 py-0.5 text-orange-700">
-                        {skill.category}
-                      </span>
-                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">
-                        {skill.level}
-                      </span>
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${
+                            i < review.rating
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'text-gray-200'
+                          }`}
+                        />
+                      ))}
                     </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {offers.length === 0 && requests.length === 0 && (
-            <p className="py-8 text-center text-gray-500">
-              No skills listed yet
-            </p>
-          )}
-        </div>
+                  </div>
+                  {review.comment && (
+                    <p className="mt-2 text-sm text-gray-600">
+                      {review.comment}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -179,4 +179,26 @@ export class WebrtcGateway
       });
     }
   }
+
+  /* ───────── Screen share signaling ───────── */
+
+  @SubscribeMessage('screenShareStarted')
+  handleScreenShareStarted(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string },
+  ): void {
+    client.to(`room:${data.roomId}`).emit('screenShareStarted', {
+      userId: client.userId,
+    });
+  }
+
+  @SubscribeMessage('screenShareStopped')
+  handleScreenShareStopped(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string },
+  ): void {
+    client.to(`room:${data.roomId}`).emit('screenShareStopped', {
+      userId: client.userId,
+    });
+  }
 }

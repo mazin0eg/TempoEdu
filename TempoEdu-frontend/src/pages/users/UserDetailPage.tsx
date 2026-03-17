@@ -9,6 +9,7 @@ import {
   Calendar,
   Award,
   Users,
+  FileBadge,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { usersApi } from '../../services/users.service';
@@ -16,7 +17,7 @@ import { skillsApi } from '../../services/skills.service';
 import { reviewsApi } from '../../services/reviews.service';
 import { chatApi } from '../../services/chat.service';
 import { useAuth } from '../../context/AuthContext';
-import type { User, Skill, Review } from '../../types';
+import type { User, Skill, Review, EarnedSkill } from '../../types';
 import { CATEGORY_COLORS } from '../../lib/constants';
 import { useQuery } from '../../lib/useQuery';
 
@@ -29,18 +30,21 @@ export default function UserDetailPage() {
     profile: User;
     skills: Skill[];
     reviews: Review[];
+    earnedSkills: EarnedSkill[];
   }>({
     queryKey: `user-detail-${userId}`,
     queryFn: async () => {
-      const [userRes, skillsRes, reviewsRes] = await Promise.all([
+      const [userRes, skillsRes, reviewsRes, earnedRes] = await Promise.all([
         usersApi.getById(userId!),
         skillsApi.getAll({ owner: userId }),
         reviewsApi.getByUser(userId!),
+        skillsApi.getPublicEarned(userId!),
       ]);
       return {
         profile: userRes.data.data,
         skills: skillsRes.data.data.skills,
         reviews: reviewsRes.data.data,
+        earnedSkills: earnedRes.data.data,
       };
     },
     enabled: !!userId,
@@ -50,6 +54,7 @@ export default function UserDetailPage() {
   const profile = data?.profile ?? null;
   const skills = data?.skills ?? [];
   const reviews = data?.reviews ?? [];
+  const earnedSkills = data?.earnedSkills ?? [];
 
   const handleStartChat = async () => {
     if (!userId) return;
@@ -257,6 +262,47 @@ export default function UserDetailPage() {
                 </div>
               </Link>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Earned Skills ── */}
+      {earnedSkills.length > 0 && (
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <Award className="h-5 w-5 text-emerald-600" />
+            <h2 className="text-lg font-semibold text-gray-900">
+              Earned Skills
+            </h2>
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+              {earnedSkills.length}
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {earnedSkills.map((earned) => {
+              const teacher = typeof earned.teacher === 'object' ? earned.teacher : null;
+              return (
+                <Link
+                  key={earned._id}
+                  to={`/certificate/${earned._id}`}
+                  className="rounded-xl border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[earned.category]}`}
+                    >
+                      {earned.category}
+                    </span>
+                    <FileBadge className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900">{earned.skillName}</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Taught by {teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Instructor'}
+                  </p>
+                  <p className="mt-2 text-xs text-gray-400">{earned.certificateCode}</p>
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}

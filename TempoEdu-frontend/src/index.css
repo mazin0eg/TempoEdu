@@ -1,1 +1,109 @@
 @import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
+
+:root {
+	--jp-blue-50: #f3f9ff;
+	--jp-blue-100: #dcefff;
+	--jp-blue-200: #badfff;
+	--jp-blue-500: #2d8cff;
+	--jp-blue-700: #0f4fa8;
+	--jp-blue-900: #0a2a5f;
+	--jp-ink: #123463;
+	--jp-paper: #f8fcff;
+}
+
+html,
+body,
+#root {
+	min-height: 100%;
+}
+
+body {
+	font-family: 'Plus Jakarta Sans', sans-serif;
+	color: var(--jp-ink);
+	background:
+		radial-gradient(circle at 14% 12%, rgba(45, 140, 255, 0.14), transparent 28%),
+		radial-gradient(circle at 88% 82%, rgba(15, 79, 168, 0.16), transparent 34%),
+		repeating-linear-gradient(
+			135deg,
+			rgba(15, 79, 168, 0.05) 0px,
+			rgba(15, 79, 168, 0.05) 2px,
+			transparent 2px,
+			transparent 14px
+		),
+		linear-gradient(180deg, #ffffff 0%, var(--jp-paper) 100%);
+	background-attachment: fixed;
+}
+
+h1,
+h2,
+h3,
+h4 {
+	font-family: 'Sora', sans-serif;
+	letter-spacing: 0.01em;
+	color: var(--jp-blue-900);
+}
+
+/* Global glassy card feel across existing pages */
+.bg-white {
+	background-color: rgba(255, 255, 255, 0.78) !important;
+	backdrop-filter: blur(8px);
+}
+
+.bg-gray-50 {
+	background-color: transparent !important;
+}
+
+.border-gray-200 {
+	border-color: rgba(15, 79, 168, 0.22) !important;
+}
+
+.text-gray-900,
+.text-gray-800,
+.text-gray-700 {
+	color: var(--jp-blue-900) !important;
+}
+
+.text-gray-600,
+.text-gray-500 {
+	color: #2b5a98 !important;
+}
+
+.bg-indigo-600,
+.bg-indigo-700 {
+	background: linear-gradient(135deg, var(--jp-blue-700), #1e63c5) !important;
+}
+
+.hover\:bg-indigo-700:hover {
+	background: linear-gradient(135deg, #0e448f, var(--jp-blue-700)) !important;
+}
+
+.text-indigo-600,
+.text-indigo-700 {
+	color: var(--jp-blue-700) !important;
+}
+
+.bg-indigo-100 {
+	background-color: rgba(45, 140, 255, 0.18) !important;
+}
+
+.border-indigo-200 {
+	border-color: rgba(45, 140, 255, 0.35) !important;
+}
+
+/* Slightly more expressive motion */
+@keyframes riseIn {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+main {
+	animation: riseIn 0.45s ease-out;
+}

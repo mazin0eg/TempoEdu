@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import BrandLogo from '../../components/common/BrandLogo';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -26,15 +27,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-sky-100 via-white to-blue-200 px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-2xl font-bold text-white shadow-lg">
-            S
-          </div>
+          <BrandLogo className="mx-auto mb-4 w-fit" />
           <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>
-          <p className="mt-2 text-gray-500">Sign in to your SkillSwap account</p>
+          <p className="mt-2 text-gray-500">Sign in to your TempoEdu account</p>
         </div>
 
         <form

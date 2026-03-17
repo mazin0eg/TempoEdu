@@ -32,6 +32,32 @@ export interface Skill {
   updatedAt: string;
 }
 
+export interface EarnedSkill {
+  _id: string;
+  user: User | string;
+  teacher: User | string;
+  session: string;
+  sourceSkill?: string;
+  skillName: string;
+  category: SkillCategory;
+  level: SkillLevel;
+  certificateCode: string;
+  isPublic: boolean;
+  issuedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CertificateData {
+  learnerName: string;
+  teacherName: string;
+  skillName: string;
+  category: SkillCategory;
+  level: SkillLevel;
+  issuedAt: string;
+  certificateCode: string;
+}
+
 export interface Session {
   _id: string;
   requester: User | string;

@@ -1,7 +1,19 @@
-import { useState, type FormEvent } from 'react';
-import { Plus, Edit2, Trash2, X } from 'lucide-react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  X,
+  Award,
+  FileBadge,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { skillsApi } from '../../services/skills.service';
-import type { Skill, SkillCategory, SkillLevel } from '../../types';
+import { sessionsApi } from '../../services/sessions.service';
+import { useAuth } from '../../context/AuthContext';
+import type { Skill, SkillCategory, SkillLevel, EarnedSkill, Session } from '../../types';
 import { SKILL_CATEGORIES, SKILL_LEVELS, CATEGORY_COLORS } from '../../lib/constants';
 import toast from 'react-hot-toast';
 import { useQuery } from '../../lib/useQuery';
@@ -26,7 +38,11 @@ const emptyForm: SkillForm = {
 };
 
 export default function MySkillsPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
   const [showModal, setShowModal] = useState(false);
+  const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<SkillForm>(emptyForm);
 
@@ -38,6 +54,33 @@ export default function MySkillsPage() {
     },
     refetchOnWindowFocus: true,
   });
+
+  const { data: earnedSkills = [], isLoading: loadingEarned } = useQuery<EarnedSkill[]>({
+    queryKey: 'my-earned-skills',
+    queryFn: async () => {
+      const { data } = await skillsApi.getMyEarned();
+      return data.data;
+    },
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: completedSessions = [] } = useQuery<Session[]>({
+    queryKey: 'completed-sessions',
+    queryFn: async () => {
+      const { data } = await sessionsApi.getMy('completed');
+      return data.data;
+    },
+    refetchOnWindowFocus: true,
+  });
+
+  const claimableSessions = useMemo(() => {
+    const claimedIds = new Set(earnedSkills.map((s) => s.session));
+    return completedSessions.filter((session) => {
+      const requesterId =
+        typeof session.requester === 'object' ? session.requester._id : session.requester;
+      return requesterId === user?._id && !claimedIds.has(session._id);
+    });
+  }, [completedSessions, earnedSkills, user?._id]);
 
   const saveMutation = useMutation<void, { editingId: string | null; payload: any }>({
     mutationFn: async ({ editingId, payload }) => {
@@ -64,6 +107,37 @@ export default function MySkillsPage() {
     onSuccess: () => toast.success('Skill deleted'),
     onError: () => toast.error('Failed to delete skill'),
     invalidateKeys: ['my-skills', 'skills', 'dashboard'],
+  });
+
+  const claimEarnedMutation = useMutation<void, string>({
+    mutationFn: async (sessionId) => {
+      await skillsApi.claimEarnedFromSession(sessionId, { isPublic: true });
+    },
+    onSuccess: () => {
+      toast.success('Earned skill claimed. Certificate ready!');
+      setShowClaimModal(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Failed to claim earned skill');
+    },
+    invalidateKeys: ['my-earned-skills', 'completed-sessions', 'user-detail'],
+  });
+
+  const visibilityMutation = useMutation<void, { id: string; isPublic: boolean }>({
+    mutationFn: async ({ id, isPublic }) => {
+      await skillsApi.updateEarned(id, { isPublic });
+    },
+    onError: () => toast.error('Failed to update visibility'),
+    invalidateKeys: ['my-earned-skills', 'user-detail'],
+  });
+
+  const deleteEarnedMutation = useMutation<void, string>({
+    mutationFn: async (id) => {
+      await skillsApi.deleteEarned(id);
+    },
+    onSuccess: () => toast.success('Earned skill removed'),
+    onError: () => toast.error('Failed to remove earned skill'),
+    invalidateKeys: ['my-earned-skills', 'user-detail'],
   });
 
   const openCreate = () => {
@@ -104,7 +178,12 @@ export default function MySkillsPage() {
     deleteMutation.mutate(id);
   };
 
-  if (loading) {
+  const handleDeleteEarned = async (id: string) => {
+    if (!confirm('Remove this earned skill from your profile?')) return;
+    deleteEarnedMutation.mutate(id);
+  };
+
+  if (loading || loadingEarned) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
@@ -120,18 +199,97 @@ export default function MySkillsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">My Skills</h1>
-          <p className="text-gray-500">Manage skills you offer and want to learn</p>
+          <p className="text-gray-500">Manage skills you offer, request, and earned</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Add Skill
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowClaimModal(true)}
+            className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+          >
+            <Award className="h-4 w-4" />
+            Claim Earned Skill
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Add Skill
+          </button>
+        </div>
       </div>
 
-      {/* Offers */}
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <Award className="h-5 w-5 text-emerald-600" />
+          <h2 className="text-lg font-semibold text-gray-800">Skills I Earned ({earnedSkills.length})</h2>
+        </div>
+
+        {earnedSkills.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500">
+            No earned skills yet. Complete a session as a learner, then claim your certificate.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {earnedSkills.map((earned) => {
+              const teacher = typeof earned.teacher === 'object' ? earned.teacher : null;
+              return (
+                <div key={earned._id} className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[earned.category]}`}>
+                      {earned.category}
+                    </span>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                      {earned.level}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-gray-900">{earned.skillName}</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Taught by {teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Instructor'}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-400">Code: {earned.certificateCode}</p>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => navigate(`/certificate/${earned._id}`)}
+                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                    >
+                      <FileBadge className="h-3.5 w-3.5" />
+                      Certificate
+                    </button>
+                    <button
+                      onClick={() =>
+                        visibilityMutation.mutate({
+                          id: earned._id,
+                          isPublic: !earned.isPublic,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      {earned.isPublic ? (
+                        <>
+                          <Eye className="h-3.5 w-3.5" /> Public
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="h-3.5 w-3.5" /> Private
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteEarned(earned._id)}
+                      className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Remove
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <section>
         <h2 className="mb-3 text-lg font-semibold text-gray-800">
           Skills I Offer ({offers.length})
@@ -154,7 +312,6 @@ export default function MySkillsPage() {
         )}
       </section>
 
-      {/* Requests */}
       <section>
         <h2 className="mb-3 text-lg font-semibold text-gray-800">
           Skills I Want to Learn ({requests.length})
@@ -177,7 +334,57 @@ export default function MySkillsPage() {
         )}
       </section>
 
-      {/* Modal */}
+      {showClaimModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Claim Earned Skill</h3>
+              <button
+                onClick={() => setShowClaimModal(false)}
+                className="rounded-lg p-1 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {claimableSessions.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500">
+                No completed learner sessions available to claim right now.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {claimableSessions.map((session) => {
+                  const provider = typeof session.provider === 'object' ? session.provider : null;
+                  const skill = typeof session.skill === 'object' ? session.skill : null;
+                  return (
+                    <div
+                      key={session._id}
+                      className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          {skill?.name || 'Session Skill'}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Teacher: {provider ? `${provider.firstName} ${provider.lastName}` : 'Unknown'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => claimEarnedMutation.mutate(session._id)}
+                        disabled={claimEarnedMutation.isLoading}
+                        className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        Claim
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">

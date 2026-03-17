@@ -14,7 +14,12 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { SkillsService, SkillFilters } from './skills.service';
-import { CreateSkillDto, UpdateSkillDto } from './dto';
+import {
+  CreateSkillDto,
+  UpdateSkillDto,
+  ClaimEarnedSkillDto,
+  UpdateEarnedSkillDto,
+} from './dto';
 import { Auth, CurrentUser } from '../../common/decorators';
 import type { UserDocument } from '../users/schemas/user.schema';
 import { SkillCategory, SkillLevel } from './schemas/skill.schema';
@@ -39,6 +44,7 @@ export class SkillsController {
   @ApiQuery({ name: 'category', required: false, enum: SkillCategory })
   @ApiQuery({ name: 'level', required: false, enum: SkillLevel })
   @ApiQuery({ name: 'type', required: false, enum: ['offer', 'request'] })
+  @ApiQuery({ name: 'owner', required: false })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
@@ -46,6 +52,7 @@ export class SkillsController {
     @Query('category') category?: SkillCategory,
     @Query('level') level?: SkillLevel,
     @Query('type') type?: 'offer' | 'request',
+    @Query('owner') owner?: string,
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
@@ -54,11 +61,66 @@ export class SkillsController {
       category,
       level,
       type,
+      owner,
       search,
       page,
       limit,
     };
     return this.skillsService.findAll(filters);
+  }
+
+  @Post('earned/from-session/:sessionId')
+  @ApiOperation({ summary: 'Claim an earned skill from a completed session' })
+  async claimEarnedSkill(
+    @CurrentUser() user: UserDocument,
+    @Param('sessionId') sessionId: string,
+    @Body() body: ClaimEarnedSkillDto,
+  ) {
+    return this.skillsService.claimEarnedSkillFromSession(
+      user._id.toString(),
+      sessionId,
+      body,
+    );
+  }
+
+  @Get('earned/me')
+  @ApiOperation({ summary: 'Get my earned skills' })
+  async getMyEarnedSkills(@CurrentUser() user: UserDocument) {
+    return this.skillsService.findMyEarnedSkills(user._id.toString());
+  }
+
+  @Get('earned/public/:userId')
+  @ApiOperation({ summary: 'Get public earned skills for a user' })
+  async getPublicEarnedSkills(@Param('userId') userId: string) {
+    return this.skillsService.findPublicEarnedSkills(userId);
+  }
+
+  @Patch('earned/:id')
+  @ApiOperation({ summary: 'Update my earned skill visibility' })
+  async updateEarnedSkill(
+    @Param('id') id: string,
+    @CurrentUser() user: UserDocument,
+    @Body() body: UpdateEarnedSkillDto,
+  ) {
+    return this.skillsService.updateEarnedSkill(id, user._id.toString(), body);
+  }
+
+  @Delete('earned/:id')
+  @ApiOperation({ summary: 'Delete my earned skill' })
+  async removeEarnedSkill(
+    @Param('id') id: string,
+    @CurrentUser() user: UserDocument,
+  ) {
+    return this.skillsService.removeEarnedSkill(id, user._id.toString());
+  }
+
+  @Get('earned/:id/certificate')
+  @ApiOperation({ summary: 'Get certificate data for an earned skill' })
+  async getCertificateData(
+    @Param('id') id: string,
+    @CurrentUser() user: UserDocument,
+  ) {
+    return this.skillsService.getCertificateData(id, user._id.toString());
   }
 
   @Get('suggestions')

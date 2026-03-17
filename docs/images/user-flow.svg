@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#e6f2ff"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 36px 'Segoe UI', Arial, sans-serif; fill: #123b72; }
+      .stepH { font: 700 20px 'Segoe UI', Arial, sans-serif; fill: #0f4fa8; }
+      .stepT { font: 500 14px 'Segoe UI', Arial, sans-serif; fill: #2f5e92; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="520" fill="url(#bg)"/>
+  <text x="50" y="65" class="title">TempoEdu Learner Journey</text>
+
+  <g transform="translate(50,120)">
+    <rect width="180" height="240" rx="18" fill="#fff" stroke="#7fb3ea" stroke-width="2"/>
+    <text x="20" y="45" class="stepH">1. Discover</text>
+    <text x="20" y="75" class="stepT">Browse skill offers</text>
+    <text x="20" y="100" class="stepT">Filter by category</text>
+    <text x="20" y="125" class="stepT">Open teacher profile</text>
+  </g>
+
+  <g transform="translate(280,120)">
+    <rect width="180" height="240" rx="18" fill="#fff" stroke="#7fb3ea" stroke-width="2"/>
+    <text x="20" y="45" class="stepH">2. Request</text>
+    <text x="20" y="75" class="stepT">Book session time</text>
+    <text x="20" y="100" class="stepT">Send message</text>
+    <text x="20" y="125" class="stepT">Await acceptance</text>
+  </g>
+
+  <g transform="translate(510,120)">
+    <rect width="180" height="240" rx="18" fill="#fff" stroke="#7fb3ea" stroke-width="2"/>
+    <text x="20" y="45" class="stepH">3. Learn Live</text>
+    <text x="20" y="75" class="stepT">Join video room</text>
+    <text x="20" y="100" class="stepT">Use chat + screen share</text>
+    <text x="20" y="125" class="stepT">Complete session</text>
+  </g>
+
+  <g transform="translate(740,120)">
+    <rect width="180" height="240" rx="18" fill="#fff" stroke="#7fb3ea" stroke-width="2"/>
+    <text x="20" y="45" class="stepH">4. Confirm</text>
+    <text x="20" y="75" class="stepT">Both users confirm</text>
+    <text x="20" y="100" class="stepT">Credits transfer</text>
+    <text x="20" y="125" class="stepT">Rate and review</text>
+  </g>
+
+  <g transform="translate(970,120)">
+    <rect width="180" height="240" rx="18" fill="#fff" stroke="#7fb3ea" stroke-width="2"/>
+    <text x="20" y="45" class="stepH">5. Certificate</text>
+    <text x="20" y="75" class="stepT">Claim earned skill</text>
+    <text x="20" y="100" class="stepT">Generate PDF</text>
+    <text x="20" y="125" class="stepT">Share publicly</text>
+  </g>
+
+  <g stroke="#2d8cff" stroke-width="4" fill="#2d8cff">
+    <line x1="232" y1="240" x2="280" y2="240"/>
+    <polygon points="280,240 266,232 266,248"/>
+    <line x1="462" y1="240" x2="510" y2="240"/>
+    <polygon points="510,240 496,232 496,248"/>
+    <line x1="692" y1="240" x2="740" y2="240"/>
+    <polygon points="740,240 726,232 726,248"/>
+    <line x1="922" y1="240" x2="970" y2="240"/>
+    <polygon points="970,240 956,232 956,248"/>
+  </g>
+</svg>

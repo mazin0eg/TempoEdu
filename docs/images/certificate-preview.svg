@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff8e8"/>
+      <stop offset="50%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e8f6ff"/>
+    </linearGradient>
+    <style>
+      .k1 { font: 700 15px 'Segoe UI', Arial, sans-serif; fill: #5c6d83; letter-spacing: 0.22em; text-transform: uppercase; }
+      .k2 { font: 700 44px 'Segoe UI', Arial, sans-serif; fill: #0f2b54; }
+      .k3 { font: 700 64px 'Segoe UI', Arial, sans-serif; fill: #0f2b54; }
+      .k4 { font: 700 50px 'Segoe UI', Arial, sans-serif; fill: #1f4ea3; }
+      .k5 { font: 500 24px 'Segoe UI', Arial, sans-serif; fill: #35557d; }
+      .k6 { font: 700 20px 'Segoe UI', Arial, sans-serif; fill: #0f2b54; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="720" fill="#e9f3ff"/>
+  <rect x="60" y="60" width="1080" height="600" rx="24" fill="url(#bg)" stroke="#f1d197" stroke-width="2"/>
+  <rect x="95" y="95" width="1010" height="530" rx="18" fill="rgba(255,255,255,0.9)" stroke="rgba(225,173,71,0.7)" stroke-width="3"/>
+
+  <g transform="translate(145,145)">
+    <rect width="54" height="54" rx="12" fill="#0f4fa8"/>
+    <path d="M10 33C15 24 25 20 44 20" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+    <path d="M10 40C17 33 27 30 44 30" stroke="#7fc3ff" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="40" cy="39" r="5" fill="#ffffff"/>
+  </g>
+
+  <text x="220" y="165" class="k1">TempoEdu Platform</text>
+  <text x="220" y="212" class="k2">Certificate of Achievement</text>
+
+  <text x="600" y="290" text-anchor="middle" class="k1">This certifies that</text>
+  <text x="600" y="360" text-anchor="middle" class="k3">Learner Name</text>
+  <text x="600" y="410" text-anchor="middle" class="k5">has successfully completed training in</text>
+  <text x="600" y="470" text-anchor="middle" class="k4">Skill Name</text>
+  <text x="600" y="515" text-anchor="middle" class="k5">taught by <tspan class="k6">Teacher Name</tspan></text>
+
+  <rect x="170" y="545" width="860" height="56" rx="12" fill="#f5faff"/>
+  <text x="200" y="580" class="k6">Level: Intermediate</text>
+  <text x="500" y="580" class="k6">Category: Programming</text>
+  <text x="790" y="580" class="k6">Issued: March 2026</text>
+</svg>

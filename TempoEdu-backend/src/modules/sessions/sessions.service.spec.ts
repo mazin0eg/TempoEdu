@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { Session, SessionStatus } from './schemas/session.schema';
 import { CreditsService } from '../credits/credits.service';
@@ -48,7 +52,12 @@ describe('SessionsService', () => {
   });
 
   describe('create', () => {
-    const dto = { provider: 'provider1', skill: 'skill1', scheduledAt: '2025-03-15T10:00:00Z', duration: 1 };
+    const dto = {
+      provider: 'provider1',
+      skill: 'skill1',
+      scheduledAt: '2025-03-15T10:00:00Z',
+      duration: 1,
+    };
 
     it('should create a session', async () => {
       creditsService.hasEnoughCredits.mockResolvedValue(true);
@@ -58,26 +67,35 @@ describe('SessionsService', () => {
         ...dto,
         requester: 'user1',
         status: SessionStatus.PENDING,
-        populate: jest.fn().mockResolvedValue({ _id: 'sess1', ...dto, requester: 'user1' }),
+        populate: jest
+          .fn()
+          .mockResolvedValue({ _id: 'sess1', ...dto, requester: 'user1' }),
       };
       sessionModel.create.mockResolvedValue(session);
 
-      const result = await service.create('user1', dto);
+      await service.create('user1', dto);
 
       expect(creditsService.hasEnoughCredits).toHaveBeenCalledWith('user1', 1);
-      expect(sessionModel.create).toHaveBeenCalledWith({ ...dto, requester: 'user1' });
+      expect(sessionModel.create).toHaveBeenCalledWith({
+        ...dto,
+        requester: 'user1',
+      });
       expect(notificationsService.create).toHaveBeenCalled();
       expect(chatGateway.sendToUser).toHaveBeenCalledTimes(2);
     });
 
     it('should throw if booking with yourself', async () => {
-      await expect(service.create('provider1', dto)).rejects.toThrow(BadRequestException);
+      await expect(service.create('provider1', dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw if insufficient credits', async () => {
       creditsService.hasEnoughCredits.mockResolvedValue(false);
 
-      await expect(service.create('user1', dto)).rejects.toThrow(BadRequestException);
+      await expect(service.create('user1', dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -104,7 +122,9 @@ describe('SessionsService', () => {
         .mockResolvedValueOnce(null);
       sessionModel.findById.mockReturnValue(chain);
 
-      await expect(service.findById('sess1')).rejects.toThrow(NotFoundException);
+      await expect(service.findById('sess1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -168,10 +188,15 @@ describe('SessionsService', () => {
       const session = makeSession();
       session.save.mockResolvedValue(session);
       const chain = { populate: jest.fn().mockReturnThis() };
-      chain.populate.mockReturnValueOnce(chain).mockReturnValueOnce(chain).mockResolvedValueOnce(session);
+      chain.populate
+        .mockReturnValueOnce(chain)
+        .mockReturnValueOnce(chain)
+        .mockResolvedValueOnce(session);
       sessionModel.findById.mockReturnValue(chain);
 
-      await service.updateStatus('sess1', 'prov1', { status: SessionStatus.ACCEPTED });
+      await service.updateStatus('sess1', 'prov1', {
+        status: SessionStatus.ACCEPTED,
+      });
 
       expect(session.status).toBe(SessionStatus.ACCEPTED);
       expect(session.roomId).toBeDefined();
@@ -182,10 +207,15 @@ describe('SessionsService', () => {
       const session = makeSession();
       session.save.mockResolvedValue(session);
       const chain = { populate: jest.fn().mockReturnThis() };
-      chain.populate.mockReturnValueOnce(chain).mockReturnValueOnce(chain).mockResolvedValueOnce(session);
+      chain.populate
+        .mockReturnValueOnce(chain)
+        .mockReturnValueOnce(chain)
+        .mockResolvedValueOnce(session);
       sessionModel.findById.mockReturnValue(chain);
 
-      await service.updateStatus('sess1', 'prov1', { status: SessionStatus.REJECTED });
+      await service.updateStatus('sess1', 'prov1', {
+        status: SessionStatus.REJECTED,
+      });
 
       expect(session.status).toBe(SessionStatus.REJECTED);
     });
@@ -193,11 +223,16 @@ describe('SessionsService', () => {
     it('should throw ForbiddenException if user not in session', async () => {
       const session = makeSession();
       const chain = { populate: jest.fn().mockReturnThis() };
-      chain.populate.mockReturnValueOnce(chain).mockReturnValueOnce(chain).mockResolvedValueOnce(session);
+      chain.populate
+        .mockReturnValueOnce(chain)
+        .mockReturnValueOnce(chain)
+        .mockResolvedValueOnce(session);
       sessionModel.findById.mockReturnValue(chain);
 
       await expect(
-        service.updateStatus('sess1', 'stranger', { status: SessionStatus.ACCEPTED }),
+        service.updateStatus('sess1', 'stranger', {
+          status: SessionStatus.ACCEPTED,
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -208,10 +243,15 @@ describe('SessionsService', () => {
       });
       session.save.mockResolvedValue(session);
       const chain = { populate: jest.fn().mockReturnThis() };
-      chain.populate.mockReturnValueOnce(chain).mockReturnValueOnce(chain).mockResolvedValueOnce(session);
+      chain.populate
+        .mockReturnValueOnce(chain)
+        .mockReturnValueOnce(chain)
+        .mockResolvedValueOnce(session);
       sessionModel.findById.mockReturnValue(chain);
 
-      await service.updateStatus('sess1', 'prov1', { status: SessionStatus.COMPLETED });
+      await service.updateStatus('sess1', 'prov1', {
+        status: SessionStatus.COMPLETED,
+      });
 
       expect(session.providerConfirmed).toBe(true);
       expect(session.status).toBe(SessionStatus.COMPLETED);

@@ -3,7 +3,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { AdminService } from './admin.service';
 import { User } from '../users/schemas/user.schema';
 import { Skill } from '../skills/schemas/skill.schema';
-import { Session, SessionStatus } from '../sessions/schemas/session.schema';
+import { Session } from '../sessions/schemas/session.schema';
 import { Review } from '../reviews/schemas/review.schema';
 
 describe('AdminService', () => {
@@ -51,16 +51,16 @@ describe('AdminService', () => {
   describe('getDashboardStats', () => {
     it('should return aggregated dashboard statistics', async () => {
       userModel.countDocuments
-        .mockResolvedValueOnce(100)   // totalUsers
-        .mockResolvedValueOnce(90)    // activeUsers
-        .mockResolvedValueOnce(5);    // suspendedUsers
+        .mockResolvedValueOnce(100) // totalUsers
+        .mockResolvedValueOnce(90) // activeUsers
+        .mockResolvedValueOnce(5); // suspendedUsers
 
       skillModel.countDocuments.mockResolvedValue(50);
 
       sessionModel.countDocuments
-        .mockResolvedValueOnce(200)   // totalSessions
-        .mockResolvedValueOnce(150)   // completedSessions
-        .mockResolvedValueOnce(30);   // pendingSessions
+        .mockResolvedValueOnce(200) // totalSessions
+        .mockResolvedValueOnce(150) // completedSessions
+        .mockResolvedValueOnce(30); // pendingSessions
 
       reviewModel.countDocuments.mockResolvedValue(120);
       reviewModel.aggregate.mockResolvedValue([{ avg: 4.5 }]);
@@ -112,7 +112,11 @@ describe('AdminService', () => {
 
       const result = await service.suspendUser('u1');
 
-      expect(userModel.findByIdAndUpdate).toHaveBeenCalledWith('u1', { isSuspended: true }, { new: true });
+      expect(userModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        'u1',
+        { isSuspended: true },
+        { new: true },
+      );
       expect(result).toEqual(user);
     });
   });
@@ -124,7 +128,11 @@ describe('AdminService', () => {
 
       const result = await service.unsuspendUser('u1');
 
-      expect(userModel.findByIdAndUpdate).toHaveBeenCalledWith('u1', { isSuspended: false }, { new: true });
+      expect(userModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        'u1',
+        { isSuspended: false },
+        { new: true },
+      );
       expect(result).toEqual(user);
     });
   });

@@ -24,16 +24,6 @@ import {
 import { useQuery } from '../../lib/useQuery';
 import { useMutation } from '../../lib/useMutation';
 
-const DAYS = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-];
-
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
   const [tab, setTab] = useState<'profile' | 'skills' | 'credits'>('profile');

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, type FormEvent } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Send, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { chatApi } from '../../services/chat.service';

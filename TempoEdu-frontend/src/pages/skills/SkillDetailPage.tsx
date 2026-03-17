@@ -6,7 +6,6 @@ import {
   Calendar,
   Clock,
   MessageSquare,
-  User as UserIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';

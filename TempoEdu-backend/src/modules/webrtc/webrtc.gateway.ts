@@ -11,13 +11,19 @@ import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
+const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const wsCorsOrigin =
+  rawCorsOrigin === '*'
+    ? true
+    : rawCorsOrigin.split(',').map((origin) => origin.trim());
+
 interface AuthenticatedSocket extends Socket {
   userId?: string;
 }
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: wsCorsOrigin,
     credentials: true,
   },
   namespace: '/webrtc',

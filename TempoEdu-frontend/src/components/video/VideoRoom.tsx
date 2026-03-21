@@ -13,7 +13,7 @@ import {
   Clock3,
 } from 'lucide-react';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 
 /* ──────── sound helpers (Web Audio API — no files needed) ──────── */
 

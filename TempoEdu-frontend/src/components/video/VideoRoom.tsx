@@ -10,6 +10,7 @@ import {
   MonitorUp,
   Maximize,
   Minimize,
+  Clock3,
 } from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
@@ -64,7 +65,14 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenSenderRef = useRef<RTCRtpSender | null>(null);
+  const remoteUserIdRef = useRef<string | null>(null);
+  const remoteVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const remoteScreenTrackRef = useRef<MediaStreamTrack | null>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const makingOfferRef = useRef(false);
+  const ignoreOfferRef = useRef(false);
+  const isSettingRemoteAnswerPendingRef = useRef(false);
+  const politePeerRef = useRef(false);
 
 
 
@@ -75,6 +83,8 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [remoteUserId, setRemoteUserId] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<string>('connecting');
+  const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
+  const [callDurationSec, setCallDurationSec] = useState(0);
 
   /* ──────── helpers ──────── */
 
@@ -93,28 +103,43 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       };
 
       pc.ontrack = (event) => {
-        const stream = event.streams[0];
-        if (!stream) return;
+        if (event.track.kind !== 'video') return;
 
-        // First stream we receive is always the webcam
-        const currentWebcam = remoteVideoRef.current?.srcObject as MediaStream | null;
-        if (!currentWebcam) {
+        const stream = event.streams[0] ?? new MediaStream([event.track]);
+        if (!remoteVideoTrackRef.current) {
+          remoteVideoTrackRef.current = event.track;
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = stream;
           }
+
+          event.track.onended = () => {
+            if (remoteVideoTrackRef.current?.id !== event.track.id) return;
+            remoteVideoTrackRef.current = null;
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = null;
+            }
+          };
           return;
         }
 
-        // Same stream as webcam — just a track update, already assigned
-        if (stream.id === currentWebcam.id) {
+        if (remoteVideoTrackRef.current.id === event.track.id) {
           return;
         }
 
-        // Different stream → screen share (auto-detected, no socket race)
+        remoteScreenTrackRef.current = event.track;
         if (remoteScreenRef.current) {
           remoteScreenRef.current.srcObject = stream;
         }
         setRemoteScreenSharing(true);
+
+        event.track.onended = () => {
+          if (remoteScreenTrackRef.current?.id !== event.track.id) return;
+          remoteScreenTrackRef.current = null;
+          setRemoteScreenSharing(false);
+          if (remoteScreenRef.current) {
+            remoteScreenRef.current.srcObject = null;
+          }
+        };
       };
 
       pc.onconnectionstatechange = () => {
@@ -123,14 +148,15 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
 
       // Handle renegotiation (needed when adding/removing screen share track)
       pc.onnegotiationneeded = async () => {
-        if (makingOfferRef.current) return;
+        if (makingOfferRef.current || pc.signalingState !== 'stable') return;
+        const targetId = remoteUserIdRef.current ?? targetUserId;
+        if (!targetId) return;
         try {
           makingOfferRef.current = true;
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
+          await pc.setLocalDescription(await pc.createOffer());
           socketRef.current?.emit('offer', {
             roomId,
-            targetUserId,
+            targetUserId: targetId,
             sdp: pc.localDescription,
           });
         } finally {
@@ -150,6 +176,10 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
     },
     [roomId],
   );
+
+  useEffect(() => {
+    remoteUserIdRef.current = remoteUserId;
+  }, [remoteUserId]);
 
   /* ──────── main effect ──────── */
 
@@ -179,27 +209,25 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       });
 
       // Another user is already in the room → we are the caller
-      socket.on('roomUsers', async ({ users }: { users: string[] }) => {
+      socket.on('roomUsers', ({ users }: { users: string[] }) => {
         if (!mounted || users.length === 0) return;
 
         const target = users[0]; // 1-on-1 call
         setRemoteUserId(target);
+        remoteUserIdRef.current = target;
+        politePeerRef.current = (user?._id ?? '') > target;
 
-        const pc = createPeerConnection(target);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        socket.emit('offer', {
-          roomId,
-          targetUserId: target,
-          sdp: pc.localDescription,
-        });
+        if (!pcRef.current) {
+          createPeerConnection(target);
+        }
       });
 
       // A new user joined → we wait for their offer
       socket.on('userJoined', ({ userId }: { userId: string }) => {
         if (!mounted) return;
         setRemoteUserId(userId);
+        remoteUserIdRef.current = userId;
+        politePeerRef.current = (user?._id ?? '') > userId;
         setConnectionState('connecting');
       });
 
@@ -218,10 +246,41 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           let pc = pcRef.current;
           if (!pc) {
             setRemoteUserId(senderId);
+            remoteUserIdRef.current = senderId;
+            politePeerRef.current = (user?._id ?? '') > senderId;
             pc = createPeerConnection(senderId);
           }
 
-          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          const readyForOffer =
+            !makingOfferRef.current &&
+            (pc.signalingState === 'stable' ||
+              isSettingRemoteAnswerPendingRef.current);
+          const offerCollision = !readyForOffer;
+
+          ignoreOfferRef.current = !politePeerRef.current && offerCollision;
+          if (ignoreOfferRef.current) {
+            return;
+          }
+
+          isSettingRemoteAnswerPendingRef.current = sdp.type === 'answer';
+
+          if (offerCollision) {
+            await Promise.all([
+              pc.setLocalDescription({ type: 'rollback' }),
+              pc.setRemoteDescription(new RTCSessionDescription(sdp)),
+            ]);
+          } else {
+            await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          }
+          isSettingRemoteAnswerPendingRef.current = false;
+
+          if (pendingIceCandidatesRef.current.length > 0) {
+            for (const pending of pendingIceCandidatesRef.current) {
+              await pc.addIceCandidate(new RTCIceCandidate(pending));
+            }
+            pendingIceCandidatesRef.current = [];
+          }
+
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
 
@@ -243,9 +302,20 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           senderId: string;
         }) => {
           if (!mounted) return;
+          if (ignoreOfferRef.current) return;
+          isSettingRemoteAnswerPendingRef.current = true;
           await pcRef.current?.setRemoteDescription(
             new RTCSessionDescription(sdp),
           );
+
+          if (pcRef.current && pendingIceCandidatesRef.current.length > 0) {
+            for (const pending of pendingIceCandidatesRef.current) {
+              await pcRef.current.addIceCandidate(new RTCIceCandidate(pending));
+            }
+            pendingIceCandidatesRef.current = [];
+          }
+
+          isSettingRemoteAnswerPendingRef.current = false;
         },
       );
 
@@ -260,9 +330,15 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         }) => {
           if (!mounted) return;
           try {
-            await pcRef.current?.addIceCandidate(
-              new RTCIceCandidate(candidate),
-            );
+            const pc = pcRef.current;
+            if (!pc) return;
+
+            if (!pc.remoteDescription) {
+              pendingIceCandidatesRef.current.push(candidate);
+              return;
+            }
+
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
           } catch (err) {
             console.error('Failed to add ICE candidate', err);
           }
@@ -278,6 +354,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       socket.on('screenShareStopped', () => {
         if (!mounted) return;
         setRemoteScreenSharing(false);
+        remoteScreenTrackRef.current = null;
         if (remoteScreenRef.current) {
           remoteScreenRef.current.srcObject = null;
         }
@@ -288,7 +365,14 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       socket.on('userLeft', () => {
         if (!mounted) return;
         setRemoteUserId(null);
+        remoteUserIdRef.current = null;
         setRemoteScreenSharing(false);
+        remoteVideoTrackRef.current = null;
+        remoteScreenTrackRef.current = null;
+        pendingIceCandidatesRef.current = [];
+        ignoreOfferRef.current = false;
+        isSettingRemoteAnswerPendingRef.current = false;
+        politePeerRef.current = false;
         setConnectionState('disconnected');
         pcRef.current?.close();
         pcRef.current = null;
@@ -306,12 +390,16 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       pcRef.current?.close();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenSenderRef.current?.track?.stop();
+      remoteUserIdRef.current = null;
+      remoteVideoTrackRef.current = null;
+      remoteScreenTrackRef.current = null;
+      pendingIceCandidatesRef.current = [];
       // Release video elements so browser turns off camera light
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
       if (remoteScreenRef.current) remoteScreenRef.current.srcObject = null;
     };
-  }, [roomId, token, createPeerConnection]);
+  }, [roomId, token, createPeerConnection, user?._id]);
 
   /* ──────── fullscreen listener ──────── */
 
@@ -320,6 +408,44 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
     document.addEventListener('fullscreenchange', handleFsChange);
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
+
+  useEffect(() => {
+    if (connectionState !== 'connected') {
+      if (!remoteUserId) {
+        setCallStartedAt(null);
+        setCallDurationSec(0);
+      }
+      return;
+    }
+
+    const startAt = callStartedAt ?? Date.now();
+    if (!callStartedAt) {
+      setCallStartedAt(startAt);
+    }
+
+    const updateDuration = () => {
+      setCallDurationSec(Math.floor((Date.now() - startAt) / 1000));
+    };
+
+    updateDuration();
+    const intervalId = window.setInterval(updateDuration, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [connectionState, callStartedAt, remoteUserId]);
+
+  // Rebind video elements after layout switches so streams do not disappear.
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+
+    if (remoteVideoRef.current && remoteVideoTrackRef.current) {
+      remoteVideoRef.current.srcObject = new MediaStream([remoteVideoTrackRef.current]);
+    }
+
+    if (remoteScreenRef.current && remoteScreenTrackRef.current) {
+      remoteScreenRef.current.srcObject = new MediaStream([remoteScreenTrackRef.current]);
+    }
+  }, [remoteScreenSharing]);
 
   /* ──────── controls ──────── */
 
@@ -398,6 +524,10 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
     pcRef.current?.close();
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenSenderRef.current?.track?.stop();
+    remoteUserIdRef.current = null;
+    remoteVideoTrackRef.current = null;
+    remoteScreenTrackRef.current = null;
+    pendingIceCandidatesRef.current = [];
     // Release video elements so browser turns off camera light
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
@@ -419,11 +549,26 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           : connectionState;
 
   const showScreenView = remoteScreenSharing;
+  const formatDuration = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hrs > 0) {
+      return `${hrs.toString().padStart(2, '0')}:${mins
+        .toString()
+        .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    return `${mins.toString().padStart(2, '0')}:${secs
+      .toString()
+      .padStart(2, '0')}`;
+  };
 
   return (
-    <div className="flex h-full flex-col bg-gray-900">
+    <div className="flex h-full flex-col bg-slate-900">
       {/* Status bar */}
-      <div className="flex items-center justify-between bg-gray-800 px-4 py-2">
+      <div className="flex items-center justify-between border-b border-slate-700/70 bg-slate-800/95 px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span
             className={`h-2.5 w-2.5 rounded-full ${
@@ -434,29 +579,34 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
                   : 'bg-red-500'
             }`}
           />
-          <span className="text-sm text-gray-300">{statusLabel}</span>
+          <span className="text-sm text-slate-200">{statusLabel}</span>
         </div>
         <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-700/50 px-2.5 py-1 text-xs text-slate-200">
+            <Clock3 className="h-3.5 w-3.5" />
+            <span className="tabular-nums">{formatDuration(callDurationSec)}</span>
+          </span>
           {isScreenSharing && (
-            <span className="flex items-center gap-1 text-xs text-indigo-400">
+            <span className="flex items-center gap-1 rounded-full bg-indigo-500/15 px-2 py-1 text-xs text-indigo-300">
               <MonitorUp className="h-3.5 w-3.5" /> Sharing your screen
             </span>
           )}
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-slate-400">
             Room: {roomId.slice(0, 8)}...
           </span>
         </div>
       </div>
 
       {/* Video area */}
-      <div className="relative flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden bg-linear-to-b from-slate-900 to-slate-950 p-2">
         {showScreenView ? (
           /* ── Screen share layout: screen main + webcams sidebar ── */
           <>
             {/* Screen share — main area */}
             <div
               ref={screenContainerRef}
-              className="relative flex flex-1 items-center justify-center bg-black p-2"
+              className="relative flex items-center justify-center rounded-xl border border-slate-700/70 bg-black p-2"
+              style={{ flex: 1 }}
             >
               <video
                 ref={remoteScreenRef}
@@ -479,27 +629,26 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
             </div>
 
             {/* Sidebar: remote webcam + local webcam */}
-            <div className="flex w-52 flex-col gap-2 bg-gray-800 p-2">
-              {/* Remote webcam */}
-              <div className="relative overflow-hidden rounded-lg border border-gray-700">
+            <div className="ml-2 flex w-60 flex-col gap-2 rounded-xl border border-slate-700/70 bg-slate-800/85 p-2">
+              <div className="relative overflow-hidden rounded-lg border border-slate-700">
                 <video
                   ref={remoteVideoRef}
                   autoPlay
                   playsInline
-                  className="w-full bg-gray-900 object-cover"
+                  className="aspect-video w-full bg-slate-900 object-cover"
                 />
                 <div className="absolute bottom-1 left-2 text-xs text-white/80">
                   Participant
                 </div>
               </div>
               {/* Local webcam */}
-              <div className="relative overflow-hidden rounded-lg border border-gray-700">
+              <div className="relative overflow-hidden rounded-lg border border-slate-700">
                 <video
                   ref={localVideoRef}
                   autoPlay
                   playsInline
                   muted
-                  className="w-full bg-gray-900 object-cover"
+                  className="aspect-video w-full bg-slate-900 object-cover"
                 />
                 <div className="absolute bottom-1 left-2 text-xs text-white/80">
                   {user?.firstName ?? 'You'}
@@ -514,7 +663,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              className="max-h-full max-w-full rounded-2xl bg-gray-800 object-cover"
+              className="max-h-full max-w-full rounded-2xl border border-slate-700/70 bg-slate-800 object-cover"
             />
 
             {!remoteUserId && (
@@ -529,13 +678,13 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
             )}
 
             {/* Local video (PIP) */}
-            <div className="absolute bottom-6 right-6 w-48 overflow-hidden rounded-xl border-2 border-gray-700 shadow-lg">
+            <div className="absolute bottom-6 right-6 w-52 overflow-hidden rounded-xl border-2 border-slate-700 shadow-lg shadow-black/30">
               <video
                 ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full bg-gray-800 object-cover"
+                className="aspect-video w-full bg-slate-800 object-cover"
               />
               <div className="absolute bottom-1 left-2 text-xs text-white/80">
                 {user?.firstName ?? 'You'}
@@ -546,13 +695,13 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-4 bg-gray-800 py-4">
+      <div className="flex items-center justify-center gap-4 border-t border-slate-700/70 bg-slate-800/95 py-4">
         <button
           onClick={toggleMute}
           className={`rounded-full p-3 transition-colors ${
             isMuted
               ? 'bg-red-600 text-white hover:bg-red-700'
-              : 'bg-gray-700 text-white hover:bg-gray-600'
+              : 'bg-slate-700 text-white hover:bg-slate-600'
           }`}
           title={isMuted ? 'Unmute' : 'Mute'}
         >
@@ -564,7 +713,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           className={`rounded-full p-3 transition-colors ${
             isCameraOff
               ? 'bg-red-600 text-white hover:bg-red-700'
-              : 'bg-gray-700 text-white hover:bg-gray-600'
+              : 'bg-slate-700 text-white hover:bg-slate-600'
           }`}
           title={isCameraOff ? 'Turn On Camera' : 'Turn Off Camera'}
         >
@@ -580,7 +729,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           className={`rounded-full p-3 transition-colors ${
             isScreenSharing
               ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-              : 'bg-gray-700 text-white hover:bg-gray-600'
+              : 'bg-slate-700 text-white hover:bg-slate-600'
           }`}
           title={isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
         >

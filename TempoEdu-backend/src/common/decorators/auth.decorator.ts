@@ -4,13 +4,7 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Role, Roles } from './roles.decorator';
 
-/**
- * Secures a route with JWT auth + optional role check.
- *
- * @example
- *   @Auth()            // any authenticated user
- *   @Auth(Role.ADMIN)  // admin only
- */
+
 export function Auth(...roles: Role[]) {
   const decorators: (ClassDecorator | MethodDecorator | PropertyDecorator)[] = [
     UseGuards(JwtAuthGuard, RolesGuard),

@@ -54,8 +54,14 @@ export default function SkillDetailPage() {
   const bookMutation = useMutation<void, FormEvent>({
     mutationFn: async () => {
       if (!skill || typeof skill.user !== 'object') throw new Error('Invalid skill');
+      const providerId = skill.type === 'request' ? user?._id : skill.user._id;
+
+      if (!providerId) {
+        throw new Error('Unable to determine provider for this session');
+      }
+
       await sessionsApi.create({
-        provider: skill.user._id,
+        provider: providerId,
         skill: skill._id,
         scheduledAt: new Date(bookingForm.scheduledAt).toISOString(),
         duration: bookingForm.duration,
@@ -63,12 +69,26 @@ export default function SkillDetailPage() {
       });
     },
     onSuccess: () => {
-      toast.success('Session request sent!');
+      toast.success(
+        skill?.type === 'request'
+          ? 'Teaching offer sent!'
+          : 'Session request sent!',
+      );
       setShowBooking(false);
       navigate('/sessions');
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Failed to book session');
+      const apiMessage = err?.response?.data?.message;
+      const normalizedApiMessage = Array.isArray(apiMessage)
+        ? apiMessage.join(', ')
+        : apiMessage;
+      toast.error(
+        normalizedApiMessage ||
+          err?.message ||
+          (skill?.type === 'request'
+            ? 'Failed to send teaching offer'
+            : 'Failed to book session'),
+      );
     },
     invalidateKeys: ['sessions', 'dashboard', 'credits'],
   });
@@ -265,14 +285,14 @@ export default function SkillDetailPage() {
           )}
 
           {/* Actions */}
-          {!isOwner && owner && skill.type === 'offer' && (
+          {!isOwner && owner && (
             <div className="space-y-2">
               <button
                 onClick={() => setShowBooking(true)}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
               >
                 <Calendar className="h-4 w-4" />
-                Book a Session
+                {skill.type === 'request' ? 'Offer to Teach' : 'Book a Session'}
               </button>
               <button
                 onClick={handleStartChat}
@@ -291,7 +311,7 @@ export default function SkillDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="mb-4 text-lg font-semibold text-gray-900">
-              Book a Session
+              {skill.type === 'request' ? 'Offer to Teach' : 'Book a Session'}
             </h3>
             <form onSubmit={handleBookSession} className="space-y-4">
               <div>
@@ -350,7 +370,11 @@ export default function SkillDetailPage() {
                     })
                   }
                   rows={3}
-                  placeholder="Tell the provider what you'd like to learn..."
+                  placeholder={
+                    skill.type === 'request'
+                      ? 'Tell them how you can help teach this skill...'
+                      : "Tell the provider what you'd like to learn..."
+                  }
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                 />
               </div>
@@ -367,7 +391,11 @@ export default function SkillDetailPage() {
                   disabled={bookMutation.isLoading}
                   className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {bookMutation.isLoading ? 'Sending...' : 'Send Request'}
+                  {bookMutation.isLoading
+                    ? 'Sending...'
+                    : skill.type === 'request'
+                      ? 'Send Teaching Offer'
+                      : 'Send Request'}
                 </button>
               </div>
             </form>

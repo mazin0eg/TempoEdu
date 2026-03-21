@@ -10,10 +10,12 @@ import { Session, SessionStatus } from './schemas/session.schema';
 import { CreditsService } from '../credits/credits.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatGateway } from '../chat/chat.gateway';
+import { Skill } from '../skills/schemas/skill.schema';
 
 describe('SessionsService', () => {
   let service: SessionsService;
   let sessionModel: Record<string, jest.Mock>;
+  let skillModel: Record<string, jest.Mock>;
   let creditsService: Record<string, jest.Mock>;
   let notificationsService: Record<string, jest.Mock>;
   let chatGateway: Record<string, jest.Mock>;
@@ -22,6 +24,10 @@ describe('SessionsService', () => {
     sessionModel = {
       create: jest.fn(),
       find: jest.fn(),
+      findById: jest.fn(),
+    };
+
+    skillModel = {
       findById: jest.fn(),
     };
 
@@ -42,6 +48,7 @@ describe('SessionsService', () => {
       providers: [
         SessionsService,
         { provide: getModelToken(Session.name), useValue: sessionModel },
+        { provide: getModelToken(Skill.name), useValue: skillModel },
         { provide: CreditsService, useValue: creditsService },
         { provide: NotificationsService, useValue: notificationsService },
         { provide: ChatGateway, useValue: chatGateway },
@@ -60,6 +67,9 @@ describe('SessionsService', () => {
     };
 
     it('should create a session', async () => {
+      skillModel.findById.mockReturnValue({
+        select: jest.fn().mockResolvedValue({ user: { toString: () => 'provider1' }, type: 'offer' }),
+      });
       creditsService.hasEnoughCredits.mockResolvedValue(true);
 
       const session = {
@@ -85,16 +95,52 @@ describe('SessionsService', () => {
     });
 
     it('should throw if booking with yourself', async () => {
+      skillModel.findById.mockReturnValue({
+        select: jest.fn().mockResolvedValue({ user: { toString: () => 'provider1' }, type: 'offer' }),
+      });
       await expect(service.create('provider1', dto)).rejects.toThrow(
         BadRequestException,
       );
     });
 
     it('should throw if insufficient credits', async () => {
+      skillModel.findById.mockReturnValue({
+        select: jest.fn().mockResolvedValue({ user: { toString: () => 'provider1' }, type: 'offer' }),
+      });
       creditsService.hasEnoughCredits.mockResolvedValue(false);
 
       await expect(service.create('user1', dto)).rejects.toThrow(
         BadRequestException,
+      );
+    });
+
+    it('should create a session for requested skill with caller as provider', async () => {
+      const requestSkillDto = {
+        provider: 'teacher1',
+        skill: 'skill-request',
+        scheduledAt: '2025-03-15T10:00:00Z',
+        duration: 1,
+      };
+
+      skillModel.findById.mockReturnValue({
+        select: jest.fn().mockResolvedValue({ user: { toString: () => 'learner1' }, type: 'request' }),
+      });
+      creditsService.hasEnoughCredits.mockResolvedValue(true);
+
+      const session = {
+        _id: 'sess2',
+        ...requestSkillDto,
+        requester: 'learner1',
+        status: SessionStatus.PENDING,
+        populate: jest.fn().mockResolvedValue({ _id: 'sess2' }),
+      };
+      sessionModel.create.mockResolvedValue(session);
+
+      await service.create('teacher1', requestSkillDto);
+
+      expect(creditsService.hasEnoughCredits).toHaveBeenCalledWith('learner1', 1);
+      expect(sessionModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({ requester: 'learner1', provider: 'teacher1' }),
       );
     });
   });

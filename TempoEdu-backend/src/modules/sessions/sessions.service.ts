@@ -19,12 +19,15 @@ import { CreditsService } from '../credits/credits.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
 import { ChatGateway } from '../chat/chat.gateway';
+import { Skill, SkillDocument } from '../skills/schemas/skill.schema';
 
 @Injectable()
 export class SessionsService {
   constructor(
     @InjectModel(Session.name)
     private readonly sessionModel: Model<SessionDocument>,
+    @InjectModel(Skill.name)
+    private readonly skillModel: Model<SkillDocument>,
     private readonly creditsService: CreditsService,
     private readonly notificationsService: NotificationsService,
     @Inject(forwardRef(() => ChatGateway))
@@ -35,13 +38,30 @@ export class SessionsService {
     requesterId: string,
     createSessionDto: CreateSessionDto,
   ): Promise<SessionDocument> {
-    if (requesterId === createSessionDto.provider) {
+    const skill = await this.skillModel
+      .findById(createSessionDto.skill)
+      .select('user type');
+
+    if (!skill) {
+      throw new NotFoundException('Skill not found');
+    }
+
+    const skillOwnerId = skill.user.toString();
+    const isRequestedSkill = skill.type === 'request';
+
+    // Derive roles from the skill itself so API callers cannot accidentally invert them.
+    // Requested skill: owner is learner/requester, caller is teacher/provider.
+    // Offered skill: caller is learner/requester, owner is teacher/provider.
+    const resolvedRequesterId = isRequestedSkill ? skillOwnerId : requesterId;
+    const resolvedProviderId = isRequestedSkill ? requesterId : skillOwnerId;
+
+    if (resolvedRequesterId === resolvedProviderId) {
       throw new BadRequestException('You cannot book a session with yourself');
     }
 
-    // Check if requester has enough credits
+    // Check if learner (requester) has enough credits.
     const hasCredits = await this.creditsService.hasEnoughCredits(
-      requesterId,
+      resolvedRequesterId,
       createSessionDto.duration,
     );
 
@@ -51,26 +71,35 @@ export class SessionsService {
 
     const session = await this.sessionModel.create({
       ...createSessionDto,
-      requester: requesterId,
+      requester: resolvedRequesterId,
+      provider: resolvedProviderId,
     });
 
-    // Notify provider
+    const notificationRecipient = isRequestedSkill
+      ? resolvedRequesterId
+      : resolvedProviderId;
+
+    const notificationMessage = isRequestedSkill
+      ? 'Someone offered to teach a skill you requested'
+      : 'You have a new session request';
+
+    // Notify the counterparty.
     await this.notificationsService.create({
-      recipient: createSessionDto.provider,
+      recipient: notificationRecipient,
       type: NotificationType.SESSION_REQUEST,
       title: 'New Session Request',
-      message: 'You have a new session request',
+      message: notificationMessage,
       metadata: { sessionId: session._id },
     });
 
     // Real-time: tell both users about new session
-    this.chatGateway.sendToUser(requesterId, 'sessionUpdated', { sessionId: session._id, status: session.status });
-    this.chatGateway.sendToUser(createSessionDto.provider, 'sessionUpdated', { sessionId: session._id, status: session.status });
+    this.chatGateway.sendToUser(resolvedRequesterId, 'sessionUpdated', { sessionId: session._id, status: session.status });
+    this.chatGateway.sendToUser(resolvedProviderId, 'sessionUpdated', { sessionId: session._id, status: session.status });
 
     return session.populate([
       { path: 'requester', select: 'firstName lastName avatar' },
       { path: 'provider', select: 'firstName lastName avatar' },
-      { path: 'skill', select: 'name category' },
+      { path: 'skill', select: 'name category type' },
     ]);
   }
 
@@ -79,7 +108,7 @@ export class SessionsService {
       .findById(id)
       .populate('requester', 'firstName lastName avatar email')
       .populate('provider', 'firstName lastName avatar email')
-      .populate('skill', 'name category level');
+      .populate('skill', 'name category level type');
 
     if (!session) {
       throw new NotFoundException('Session not found');
@@ -102,7 +131,7 @@ export class SessionsService {
       .find(query)
       .populate('requester', 'firstName lastName avatar')
       .populate('provider', 'firstName lastName avatar')
-      .populate('skill', 'name category')
+      .populate('skill', 'name category type')
       .sort({ scheduledAt: -1 });
   }
 
@@ -124,22 +153,34 @@ export class SessionsService {
     }
 
     // Handle status transitions
-    if (updateDto.status === SessionStatus.ACCEPTED && isProvider) {
+    const skillType = (session.skill as any)?.type;
+    const canRespondToRequest =
+      skillType === 'request' ? isRequester : isProvider;
+
+    if (updateDto.status === SessionStatus.ACCEPTED && canRespondToRequest) {
       session.status = SessionStatus.ACCEPTED;
       session.roomId = randomUUID();
 
+      const recipientId = isProvider
+        ? (session.requester as any)._id.toString()
+        : (session.provider as any)._id.toString();
+
       await this.notificationsService.create({
-        recipient: (session.requester as any)._id.toString(),
+        recipient: recipientId,
         type: NotificationType.SESSION_ACCEPTED,
         title: 'Session Accepted',
         message: 'Your session has been accepted',
         metadata: { sessionId: session._id },
       });
-    } else if (updateDto.status === SessionStatus.REJECTED && isProvider) {
+    } else if (updateDto.status === SessionStatus.REJECTED && canRespondToRequest) {
       session.status = SessionStatus.REJECTED;
 
+      const recipientId = isProvider
+        ? (session.requester as any)._id.toString()
+        : (session.provider as any)._id.toString();
+
       await this.notificationsService.create({
-        recipient: (session.requester as any)._id.toString(),
+        recipient: recipientId,
         type: NotificationType.SESSION_REJECTED,
         title: 'Session Rejected',
         message: 'Your session request was rejected',

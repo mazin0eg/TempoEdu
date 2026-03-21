@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   Users,
   BookOpen,
@@ -8,9 +9,13 @@ import {
   Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import type { ColumnDef } from '@tanstack/react-table';
 import { adminApi } from '../../services/admin.service';
 import type { User, DashboardStats } from '../../types';
 import { useQuery, invalidateQueries } from '../../lib/useQuery';
+import Spinner from '../../components/ui/Spinner';
+import StatCard from '../../components/ui/StatCard';
+import DataTable from '../../components/ui/DataTable';
 
 export default function AdminDashboardPage() {
   const { data: stats } = useQuery<DashboardStats>({
@@ -63,42 +68,100 @@ export default function AdminDashboardPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
-      </div>
-    );
-  }
+  const columns = useMemo<ColumnDef<User, any>[]>(
+    () => [
+      {
+        accessorFn: (row) => `${row.firstName} ${row.lastName}`,
+        id: 'name',
+        header: 'Name',
+        cell: ({ getValue }) => (
+          <span className="font-medium text-gray-900">{getValue()}</span>
+        ),
+      },
+      {
+        accessorKey: 'email',
+        header: 'Email',
+        cell: ({ getValue }) => (
+          <span className="text-gray-500">{getValue()}</span>
+        ),
+      },
+      {
+        accessorKey: 'role',
+        header: 'Role',
+        cell: ({ getValue }) => {
+          const role = getValue() as string;
+          return (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                role === 'admin'
+                  ? 'bg-purple-100 text-purple-700'
+                  : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              {role}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'credits',
+        header: 'Credits',
+      },
+      {
+        accessorKey: 'isSuspended',
+        header: 'Status',
+        cell: ({ getValue }) =>
+          getValue() ? (
+            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+              Suspended
+            </span>
+          ) : (
+            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+              Active
+            </span>
+          ),
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const u = row.original;
+          return (
+            <div className="flex items-center gap-1">
+              {u.isSuspended ? (
+                <button
+                  onClick={() => handleUnsuspend(u._id)}
+                  className="rounded p-1 text-green-600 hover:bg-green-50"
+                  title="Unsuspend"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSuspend(u._id)}
+                  className="rounded p-1 text-amber-600 hover:bg-amber-50"
+                  title="Suspend"
+                >
+                  <Ban className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                onClick={() => handleDelete(u._id)}
+                className="rounded p-1 text-red-600 hover:bg-red-50"
+                title="Delete"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          );
+        },
+      },
+    ],
+    [],
+  );
 
-  const statCards = stats
-    ? [
-        {
-          label: 'Total Users',
-          value: stats.users.total,
-          icon: Users,
-          color: 'bg-blue-100 text-blue-600',
-        },
-        {
-          label: 'Total Skills',
-          value: stats.skills.total,
-          icon: BookOpen,
-          color: 'bg-green-100 text-green-600',
-        },
-        {
-          label: 'Total Sessions',
-          value: stats.sessions.total,
-          icon: CalendarCheck,
-          color: 'bg-purple-100 text-purple-600',
-        },
-        {
-          label: 'Completed Sessions',
-          value: stats.sessions.completed,
-          icon: TrendingUp,
-          color: 'bg-amber-100 text-amber-600',
-        },
-      ]
-    : [];
+  if (loading) return <Spinner />;
 
   return (
     <div className="space-y-6">
@@ -108,126 +171,45 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((card) => (
-          <div
-            key={card.label}
-            className="rounded-xl border border-gray-200 bg-white p-5"
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.color}`}
-              >
-                <card.icon className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {card.value}
-                </p>
-                <p className="text-xs text-gray-500">{card.label}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Skills by Category */}
-      {/* Skills by category could be fetched separately if needed */}
-
-      {/* Users Table */}
-      <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 p-4">
-          <h2 className="font-semibold text-gray-900">
-            All Users ({users.length})
-          </h2>
+      {stats && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            icon={<Users className="h-5 w-5" />}
+            label="Total Users"
+            value={stats.users.total}
+            color="bg-blue-100 text-blue-600"
+          />
+          <StatCard
+            icon={<BookOpen className="h-5 w-5" />}
+            label="Total Skills"
+            value={stats.skills.total}
+            color="bg-green-100 text-green-600"
+          />
+          <StatCard
+            icon={<CalendarCheck className="h-5 w-5" />}
+            label="Total Sessions"
+            value={stats.sessions.total}
+            color="bg-purple-100 text-purple-600"
+          />
+          <StatCard
+            icon={<TrendingUp className="h-5 w-5" />}
+            label="Completed Sessions"
+            value={stats.sessions.completed}
+            color="bg-amber-100 text-amber-600"
+          />
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left font-medium text-gray-500">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500">
-                  Email
-                </th>
-                <th className="px-4 py-3 text-center font-medium text-gray-500">
-                  Role
-                </th>
-                <th className="px-4 py-3 text-center font-medium text-gray-500">
-                  Credits
-                </th>
-                <th className="px-4 py-3 text-center font-medium text-gray-500">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-center font-medium text-gray-500">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {users.map((u) => (
-                <tr key={u._id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">
-                    {u.firstName} {u.lastName}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">{u.email}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        u.role === 'admin'
-                          ? 'bg-purple-100 text-purple-700'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      {u.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center">{u.credits}</td>
-                  <td className="px-4 py-3 text-center">
-                    {u.isSuspended ? (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                        Suspended
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                        Active
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
-                      {u.isSuspended ? (
-                        <button
-                          onClick={() => handleUnsuspend(u._id)}
-                          className="rounded p-1 text-green-600 hover:bg-green-50"
-                          title="Unsuspend"
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleSuspend(u._id)}
-                          className="rounded p-1 text-amber-600 hover:bg-amber-50"
-                          title="Suspend"
-                        >
-                          <Ban className="h-4 w-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(u._id)}
-                        className="rounded p-1 text-red-600 hover:bg-red-50"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      )}
+
+      {/* Users DataTable */}
+      <div>
+        <h2 className="mb-3 font-semibold text-gray-900">All Users ({users.length})</h2>
+        <DataTable
+          data={users}
+          columns={columns}
+          searchColumn="name"
+          searchPlaceholder="Search users..."
+          pageSize={10}
+        />
       </div>
     </div>
   );

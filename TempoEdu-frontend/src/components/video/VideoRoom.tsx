@@ -132,15 +132,34 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   const [callDurationSec, setCallDurationSec] = useState(0);
   const [mediaError, setMediaError] = useState<string | null>(null);
 
+  const shouldInitiateOffer = useCallback(
+    (targetUserId: string) => {
+      if (!myUserId || !targetUserId) return false;
+      return myUserId < targetUserId;
+    },
+    [myUserId],
+  );
+
   const startOffer = useCallback(
-    async (targetUserId: string) => {
+    async (
+      targetUserId: string,
+      options?: { iceRestart?: boolean; force?: boolean },
+    ) => {
       if (!targetUserId || targetUserId === myUserId) return;
       const pc = pcRef.current;
       if (!pc || makingOfferRef.current || pc.signalingState !== 'stable') return;
 
+      const isInitialNegotiation = !pc.remoteDescription;
+      const force = options?.force === true;
+      if (isInitialNegotiation && !force && !shouldInitiateOffer(targetUserId)) {
+        return;
+      }
+
       try {
         makingOfferRef.current = true;
-        await pc.setLocalDescription(await pc.createOffer());
+        await pc.setLocalDescription(
+          await pc.createOffer({ iceRestart: options?.iceRestart === true }),
+        );
         socketRef.current?.emit('offer', {
           roomId,
           targetUserId,
@@ -150,7 +169,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         makingOfferRef.current = false;
       }
     },
-    [myUserId, roomId],
+    [myUserId, roomId, shouldInitiateOffer],
   );
 
   /* ──────── helpers ──────── */
@@ -218,17 +237,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         const targetId = remoteUserIdRef.current ?? targetUserId;
         if (!targetId || makingOfferRef.current) return;
 
-        try {
-          makingOfferRef.current = true;
-          await pc.setLocalDescription(await pc.createOffer({ iceRestart: true }));
-          socketRef.current?.emit('offer', {
-            roomId,
-            targetUserId: targetId,
-            sdp: pc.localDescription,
-          });
-        } finally {
-          makingOfferRef.current = false;
-        }
+        await startOffer(targetId, { iceRestart: true, force: true });
       };
 
       // Handle renegotiation (needed when adding/removing screen share track)
@@ -236,17 +245,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         if (makingOfferRef.current || pc.signalingState !== 'stable') return;
         const targetId = remoteUserIdRef.current ?? targetUserId;
         if (!targetId) return;
-        try {
-          makingOfferRef.current = true;
-          await pc.setLocalDescription(await pc.createOffer());
-          socketRef.current?.emit('offer', {
-            roomId,
-            targetUserId: targetId,
-            sdp: pc.localDescription,
-          });
-        } finally {
-          makingOfferRef.current = false;
-        }
+        await startOffer(targetId);
       };
 
       // Add local tracks
@@ -259,7 +258,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       pcRef.current = pc;
       return pc;
     },
-    [roomId],
+    [roomId, startOffer],
   );
 
   useEffect(() => {

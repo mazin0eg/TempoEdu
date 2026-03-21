@@ -52,6 +52,18 @@ function buildIceConfig(): RTCConfiguration {
   };
 }
 
+function getUserIdFromToken(token: string | null): string {
+  if (!token) return '';
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] || '')) as {
+      sub?: string;
+    };
+    return payload.sub || '';
+  } catch {
+    return '';
+  }
+}
+
 /* ──────── sound helpers (Web Audio API — no files needed) ──────── */
 
 let audioCtx: AudioContext | null = null;
@@ -87,6 +99,7 @@ interface VideoRoomProps {
 
 export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   const { token, user } = useAuth();
+  const myUserId = user?._id || getUserIdFromToken(token);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -121,6 +134,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
 
   const startOffer = useCallback(
     async (targetUserId: string) => {
+      if (!targetUserId || targetUserId === myUserId) return;
       const pc = pcRef.current;
       if (!pc || makingOfferRef.current || pc.signalingState !== 'stable') return;
 
@@ -136,7 +150,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         makingOfferRef.current = false;
       }
     },
-    [roomId],
+    [myUserId, roomId],
   );
 
   /* ──────── helpers ──────── */
@@ -321,10 +335,11 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       socket.on('roomUsers', ({ users }: { users: string[] }) => {
         if (!mounted || users.length === 0) return;
 
-        const target = users[0]; // 1-on-1 call
+        const target = users.find((id) => id !== myUserId);
+        if (!target) return;
         setRemoteUserId(target);
         remoteUserIdRef.current = target;
-        politePeerRef.current = (user?._id ?? '') > target;
+        politePeerRef.current = myUserId > target;
 
         if (!pcRef.current) {
           createPeerConnection(target);
@@ -337,9 +352,10 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       // A new user joined → we wait for their offer
       socket.on('userJoined', ({ userId }: { userId: string }) => {
         if (!mounted) return;
+        if (userId === myUserId) return;
         setRemoteUserId(userId);
         remoteUserIdRef.current = userId;
-        politePeerRef.current = (user?._id ?? '') > userId;
+        politePeerRef.current = myUserId > userId;
         setConnectionState('connecting');
 
         if (!pcRef.current) {
@@ -355,8 +371,8 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         ({ users }: { roomId: string; users: string[] }) => {
           if (!mounted) return;
 
-          const myId = user?._id ?? '';
-          const peerId = users.find((id) => id !== myId) ?? null;
+          if (!myUserId) return;
+          const peerId = users.find((id) => id !== myUserId) ?? null;
 
           if (!peerId) {
             setRemoteUserId(null);
@@ -369,7 +385,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
             remoteUserIdRef.current = peerId;
           }
 
-          politePeerRef.current = myId > peerId;
+          politePeerRef.current = myUserId > peerId;
           setConnectionState('connecting');
 
           if (!pcRef.current) {
@@ -548,7 +564,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
       if (remoteScreenRef.current) remoteScreenRef.current.srcObject = null;
     };
-  }, [roomId, token, createPeerConnection, startOffer, user?._id]);
+  }, [myUserId, roomId, token, createPeerConnection, startOffer]);
 
   /* ──────── fullscreen listener ──────── */
 

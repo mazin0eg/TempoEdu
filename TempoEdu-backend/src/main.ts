@@ -32,6 +32,11 @@ async function bootstrap() {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const path = req.path || '';
 
+    // Do not rate-limit Socket.IO transport requests; it causes reconnect loops and signaling drops.
+    if (path.startsWith('/socket.io')) {
+      return next();
+    }
+
     const isAuthPath = path.startsWith('/api/auth');
     const windowMs = isAuthPath ? 10 * 60 * 1000 : 60 * 1000;
     const maxRequests = isAuthPath ? 30 : 300;

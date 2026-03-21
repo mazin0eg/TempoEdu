@@ -29,6 +29,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(ChatGateway.name);
   private connectedUsers : Map<string,string>; // userId -> socketId
+  private rooms = new Map<string, Set<string>>();
 
   constructor(
     private readonly chatService: ChatService,
@@ -61,6 +62,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleDisconnect(client: AuthenticatedSocket): void {
     if (client.userId) {
       this.connectedUsers.delete(client.userId);
+
+      for (const [roomId, members] of this.rooms.entries()) {
+        if (!members.has(client.userId)) continue;
+
+        members.delete(client.userId);
+        client.to(`room:${roomId}`).emit('userLeft', { userId: client.userId });
+        this.server.to(`room:${roomId}`).emit('roomState', {
+          roomId,
+          users: [...members],
+        });
+
+        if (members.size === 0) {
+          this.rooms.delete(roomId);
+        }
+      }
+
       this.logger.log(`Client disconnected: ${client.userId}`);
     }
   }
@@ -116,5 +133,135 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Public method to send notifications to specific users
   sendToUser(userId: string, event: string, data: unknown): void {
     this.server.to(`user:${userId}`).emit(event, data);
+  }
+
+  @SubscribeMessage('joinRoom')
+  handleJoinRoom(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string },
+  ): void {
+    const { roomId } = data;
+    const userId = client.userId!;
+
+    if (!this.rooms.has(roomId)) {
+      this.rooms.set(roomId, new Set());
+    }
+    const members = this.rooms.get(roomId)!;
+    members.add(userId);
+
+    client.join(`room:${roomId}`);
+
+    const existingMembers = [...members].filter((id) => id !== userId);
+    client.emit('roomUsers', { roomId, users: existingMembers });
+    client.to(`room:${roomId}`).emit('userJoined', { userId });
+    this.server.to(`room:${roomId}`).emit('roomState', {
+      roomId,
+      users: [...members],
+    });
+
+    this.logger.log(`User ${userId} joined room ${roomId}`);
+  }
+
+  @SubscribeMessage('leaveRoom')
+  handleLeaveRoom(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string },
+  ): void {
+    const { roomId } = data;
+    const userId = client.userId!;
+
+    client.leave(`room:${roomId}`);
+
+    const members = this.rooms.get(roomId);
+    if (members) {
+      members.delete(userId);
+      this.server.to(`room:${roomId}`).emit('roomState', {
+        roomId,
+        users: [...members],
+      });
+      if (members.size === 0) {
+        this.rooms.delete(roomId);
+      }
+    }
+
+    client.to(`room:${roomId}`).emit('userLeft', { userId });
+    this.logger.log(`User ${userId} left room ${roomId}`);
+  }
+
+  @SubscribeMessage('offer')
+  handleOffer(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody()
+    data: {
+      roomId: string;
+      targetUserId: string;
+      sdp: RTCSessionDescriptionInit;
+    },
+  ): void {
+    const targetSocketId = this.connectedUsers.get(data.targetUserId);
+    if (targetSocketId) {
+      this.server.to(targetSocketId).emit('offer', {
+        sdp: data.sdp,
+        senderId: client.userId,
+      });
+    }
+  }
+
+  @SubscribeMessage('answer')
+  handleAnswer(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody()
+    data: {
+      roomId: string;
+      targetUserId: string;
+      sdp: RTCSessionDescriptionInit;
+    },
+  ): void {
+    const targetSocketId = this.connectedUsers.get(data.targetUserId);
+    if (targetSocketId) {
+      this.server.to(targetSocketId).emit('answer', {
+        sdp: data.sdp,
+        senderId: client.userId,
+      });
+    }
+  }
+
+  @SubscribeMessage('iceCandidate')
+  handleIceCandidate(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody()
+    data: {
+      roomId: string;
+      targetUserId: string;
+      candidate: RTCIceCandidateInit;
+    },
+  ): void {
+    const targetSocketId = this.connectedUsers.get(data.targetUserId);
+    if (targetSocketId) {
+      this.server.to(targetSocketId).emit('iceCandidate', {
+        candidate: data.candidate,
+        senderId: client.userId,
+      });
+    }
+  }
+
+  @SubscribeMessage('screenShareStarted')
+  handleScreenShareStarted(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string },
+  ): void {
+    client.to(`room:${data.roomId}`).emit('screenShareStarted', {
+      userId: client.userId,
+    });
+  }
+
+  @SubscribeMessage('screenShareStopped')
+  handleScreenShareStopped(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string },
+  ): void {
+    client.to(`room:${data.roomId}`).emit('screenShareStopped', {
+      userId: client.userId,
+    });
   }
 }

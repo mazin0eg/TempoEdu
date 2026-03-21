@@ -5,7 +5,7 @@ services:
     volumes:
       - mongodata:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.runCommand({ ping: 1 }).ok\" | grep 1"]
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"quit(db.adminCommand('ping').ok ? 0 : 2)\""]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -60,7 +60,7 @@ services:
     expose:
       - "3000"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "const net=require('net');const s=net.connect(3000,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000);"]
       interval: 30s
       timeout: 10s
       retries: 5

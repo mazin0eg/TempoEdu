@@ -86,6 +86,26 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [callDurationSec, setCallDurationSec] = useState(0);
 
+  const startOffer = useCallback(
+    async (targetUserId: string) => {
+      const pc = pcRef.current;
+      if (!pc || makingOfferRef.current || pc.signalingState !== 'stable') return;
+
+      try {
+        makingOfferRef.current = true;
+        await pc.setLocalDescription(await pc.createOffer());
+        socketRef.current?.emit('offer', {
+          roomId,
+          targetUserId,
+          sdp: pc.localDescription,
+        });
+      } finally {
+        makingOfferRef.current = false;
+      }
+    },
+    [roomId],
+  );
+
   /* ──────── helpers ──────── */
 
   const createPeerConnection = useCallback(
@@ -220,6 +240,9 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         if (!pcRef.current) {
           createPeerConnection(target);
         }
+
+        // Force initial offer to avoid waiting state if onnegotiationneeded is missed.
+        void startOffer(target);
       });
 
       // A new user joined → we wait for their offer
@@ -229,6 +252,13 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         remoteUserIdRef.current = userId;
         politePeerRef.current = (user?._id ?? '') > userId;
         setConnectionState('connecting');
+
+        if (!pcRef.current) {
+          createPeerConnection(userId);
+        }
+
+        // Also try offering from existing participant to avoid deadlocks.
+        void startOffer(userId);
       });
 
       // Receive offer → create answer
@@ -399,7 +429,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
       if (remoteScreenRef.current) remoteScreenRef.current.srcObject = null;
     };
-  }, [roomId, token, createPeerConnection, user?._id]);
+  }, [roomId, token, createPeerConnection, startOffer, user?._id]);
 
   /* ──────── fullscreen listener ──────── */
 

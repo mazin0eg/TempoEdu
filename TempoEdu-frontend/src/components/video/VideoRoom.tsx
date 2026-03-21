@@ -239,6 +239,9 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       // 2. Connect to signaling server
       const socket = io(`${SOCKET_URL}/webrtc`, {
         auth: { token },
+        query: { token },
+        extraHeaders: token ? { Authorization: `Bearer ${token}` } : undefined,
+        path: '/socket.io',
         transports: ['websocket', 'polling'],
       });
       socketRef.current = socket;

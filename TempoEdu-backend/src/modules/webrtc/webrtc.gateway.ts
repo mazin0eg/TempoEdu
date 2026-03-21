@@ -11,19 +11,14 @@ import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
-const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
-const wsCorsOrigin =
-  rawCorsOrigin === '*'
-    ? true
-    : rawCorsOrigin.split(',').map((origin) => origin.trim());
-
 interface AuthenticatedSocket extends Socket {
   userId?: string;
 }
 
 @WebSocketGateway({
   cors: {
-    origin: wsCorsOrigin,
+    // Keep signaling available even when domain/origin setup changes during deployment.
+    origin: true,
     credentials: true,
   },
   namespace: '/webrtc',
@@ -48,7 +43,21 @@ export class WebrtcGateway
 
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
     try {
-      const token = client.handshake.auth.token?.replace('Bearer ', '');
+      const handshakeAuthToken =
+        typeof client.handshake.auth?.token === 'string'
+          ? client.handshake.auth.token
+          : '';
+      const queryToken =
+        typeof client.handshake.query?.token === 'string'
+          ? client.handshake.query.token
+          : '';
+      const headerAuth =
+        typeof client.handshake.headers?.authorization === 'string'
+          ? client.handshake.headers.authorization
+          : '';
+
+      const tokenSource = handshakeAuthToken || queryToken || headerAuth;
+      const token = tokenSource.replace('Bearer ', '').trim();
       if (!token) {
         this.logger.warn('WebRTC connection rejected: missing token');
         client.disconnect();

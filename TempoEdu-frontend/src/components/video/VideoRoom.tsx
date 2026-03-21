@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
 import BrandLogo from '../common/BrandLogo';
@@ -104,6 +104,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoMiniRef = useRef<HTMLVideoElement>(null);
   const remoteScreenRef = useRef<HTMLVideoElement>(null);
   const screenContainerRef = useRef<HTMLDivElement>(null);
 
@@ -132,12 +133,17 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [callDurationSec, setCallDurationSec] = useState(0);
   const [mediaError, setMediaError] = useState<string | null>(null);
-  const [focusedTile, setFocusedTile] = useState<'remote' | 'local' | 'screen'>(
-    'remote',
+  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
+  const [isDraggingPreview, setIsDraggingPreview] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const previewStartRef = useRef({ x: 0, y: 0 });
+
+  const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(
+    navigator.userAgent,
   );
-  const [dockPosition, setDockPosition] = useState({ x: 24, y: 24 });
-  const [isDraggingDock, setIsDraggingDock] = useState(false);
-  const dragOffsetRef = useRef({ x: 0, y: 0 });
+  const supportsScreenShare =
+    typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
+  const canShareScreen = supportsScreenShare && !isMobileDevice;
 
   const shouldInitiateOffer = useCallback(
     (targetUserId: string) => {
@@ -204,12 +210,18 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = stream;
           }
+          if (remoteVideoMiniRef.current) {
+            remoteVideoMiniRef.current.srcObject = stream;
+          }
 
           event.track.onended = () => {
             if (remoteVideoTrackRef.current?.id !== event.track.id) return;
             remoteVideoTrackRef.current = null;
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = null;
+            }
+            if (remoteVideoMiniRef.current) {
+              remoteVideoMiniRef.current.srcObject = null;
             }
           };
           return;
@@ -273,30 +285,27 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   }, [remoteUserId]);
 
   useEffect(() => {
-    if (!remoteScreenSharing && focusedTile === 'screen') {
-      setFocusedTile('remote');
-    }
-  }, [focusedTile, remoteScreenSharing]);
-
-  useEffect(() => {
-    const onMove = (event: MouseEvent) => {
-      if (!isDraggingDock) return;
-      const nextX = Math.max(12, window.innerWidth - event.clientX - dragOffsetRef.current.x);
-      const nextY = Math.max(12, window.innerHeight - event.clientY - dragOffsetRef.current.y - 96);
-      setDockPosition({ x: nextX, y: nextY });
+    const onMove = (event: PointerEvent) => {
+      if (!isDraggingPreview) return;
+      const deltaX = event.clientX - dragStartRef.current.x;
+      const deltaY = event.clientY - dragStartRef.current.y;
+      setPreviewOffset({
+        x: previewStartRef.current.x + deltaX,
+        y: previewStartRef.current.y + deltaY,
+      });
     };
 
     const onUp = () => {
-      setIsDraggingDock(false);
+      setIsDraggingPreview(false);
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
     };
-  }, [isDraggingDock]);
+  }, [isDraggingPreview]);
 
   /* ──────── main effect ──────── */
 
@@ -636,7 +645,11 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
     }
 
     if (remoteVideoRef.current && remoteVideoTrackRef.current) {
-      remoteVideoRef.current.srcObject = new MediaStream([remoteVideoTrackRef.current]);
+      const remoteStream = new MediaStream([remoteVideoTrackRef.current]);
+      remoteVideoRef.current.srcObject = remoteStream;
+      if (remoteVideoMiniRef.current) {
+        remoteVideoMiniRef.current.srcObject = remoteStream;
+      }
     }
 
     if (remoteScreenRef.current && remoteScreenTrackRef.current) {
@@ -666,6 +679,12 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
 
   const toggleScreenShare = async () => {
     if (!pcRef.current) return;
+    if (!canShareScreen) {
+      setMediaError(
+        'Screen sharing is not supported on this mobile browser yet. You can still view shared screens from others.',
+      );
+      return;
+    }
 
     if (isScreenSharing) {
       // Stop screen sharing — remove the screen track from PC
@@ -746,16 +765,11 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           : connectionState;
 
   const showScreenView = remoteScreenSharing;
-  const showRemoteMain = focusedTile === 'remote' || (!showScreenView && focusedTile === 'screen');
-  const showLocalMain = focusedTile === 'local';
-  const showScreenMain = showScreenView && focusedTile === 'screen';
 
-  const beginDockDrag = (event: ReactMouseEvent<HTMLDivElement>) => {
-    setIsDraggingDock(true);
-    dragOffsetRef.current = {
-      x: event.currentTarget.getBoundingClientRect().right - event.clientX,
-      y: event.currentTarget.getBoundingClientRect().bottom - event.clientY,
-    };
+  const beginPreviewDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    setIsDraggingPreview(true);
+    dragStartRef.current = { x: event.clientX, y: event.clientY };
+    previewStartRef.current = previewOffset;
   };
   const formatDuration = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -774,7 +788,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   };
 
   return (
-    <div className="flex h-full flex-col bg-stone-900">
+    <div className="flex h-full flex-col bg-zinc-950">
       {/* Status bar */}
       <div className="flex items-center justify-between border-b border-stone-700/80 bg-stone-900/95 px-4 py-2.5">
         <div className="flex items-center gap-2">
@@ -813,30 +827,37 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       )}
 
       {/* Video area */}
-      <div className="relative flex flex-1 overflow-hidden bg-linear-to-b from-stone-900 via-zinc-900 to-stone-950 p-3">
+      <div className="relative flex flex-1 overflow-hidden bg-linear-to-b from-zinc-950 via-zinc-900 to-black p-3">
         <div
           ref={screenContainerRef}
-          className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl border border-stone-700/70 bg-black/80"
+          className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl border border-zinc-700/70 bg-black"
         >
           <video
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className={`h-full w-full object-cover ${showRemoteMain ? 'block' : 'hidden'}`}
-          />
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className={`h-full w-full object-cover transform-[scaleX(1)] ${showLocalMain ? 'block' : 'hidden'}`}
+            className={`h-full w-full object-cover ${showScreenView ? 'hidden' : 'block'}`}
           />
           <video
             ref={remoteScreenRef}
             autoPlay
             playsInline
-            className={`h-full w-full object-contain ${showScreenMain ? 'block' : 'hidden'}`}
+            className={`h-full w-full object-contain ${showScreenView ? 'block' : 'hidden'}`}
           />
+
+          {showScreenView && (
+            <div className="absolute left-4 top-4 w-44 overflow-hidden rounded-xl border border-zinc-600/80 bg-black/60 shadow-xl">
+              <video
+                ref={remoteVideoMiniRef}
+                autoPlay
+                playsInline
+                className="aspect-video w-full object-cover"
+              />
+              <div className="absolute bottom-1 left-2 text-[11px] text-white/90">
+                Participant
+              </div>
+            </div>
+          )}
 
           {!remoteUserId && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/35">
@@ -856,53 +877,29 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           </button>
 
           <div
-            className="absolute z-20 flex gap-2 rounded-xl border border-stone-500/60 bg-stone-950/70 p-2 shadow-2xl backdrop-blur"
-            style={{ right: `${dockPosition.x}px`, bottom: `${dockPosition.y}px` }}
+            onPointerDown={beginPreviewDrag}
+            className="absolute bottom-4 right-4 z-20 w-44 cursor-grab overflow-hidden rounded-xl border border-zinc-500/70 bg-black/70 shadow-2xl"
+            style={{ transform: `translate(${previewOffset.x}px, ${previewOffset.y}px)` }}
           >
-            <div
-              onMouseDown={beginDockDrag}
-              className="absolute -top-2 left-2 cursor-grab rounded-full border border-stone-500/70 bg-stone-800/90 px-2 py-0.5 text-[10px] text-stone-200"
-            >
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="aspect-video w-full object-cover"
+            />
+            <div className="absolute bottom-1 left-2 text-[11px] text-white/90">
+              {user?.firstName ?? 'You'}
+            </div>
+            <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
               drag
             </div>
-
-            <button
-              onClick={() => setFocusedTile('remote')}
-              className={`relative overflow-hidden rounded-lg border ${
-                focusedTile === 'remote' ? 'border-amber-300' : 'border-stone-600'
-              }`}
-            >
-              <div className="flex h-20 w-32 items-center justify-center bg-stone-900 text-xs text-stone-200">Participant</div>
-              <span className="absolute bottom-1 left-2 text-[11px] text-white/90">Participant</span>
-            </button>
-
-            <button
-              onClick={() => setFocusedTile('local')}
-              className={`relative overflow-hidden rounded-lg border ${
-                focusedTile === 'local' ? 'border-amber-300' : 'border-stone-600'
-              }`}
-            >
-              <div className="flex h-20 w-32 items-center justify-center bg-stone-900 text-xs text-stone-200">You</div>
-              <span className="absolute bottom-1 left-2 text-[11px] text-white/90">You</span>
-            </button>
-
-            {showScreenView && (
-              <button
-                onClick={() => setFocusedTile('screen')}
-                className={`relative overflow-hidden rounded-lg border ${
-                  focusedTile === 'screen' ? 'border-amber-300' : 'border-stone-600'
-                }`}
-              >
-                <div className="flex h-20 w-32 items-center justify-center bg-stone-900 text-xs text-stone-200">Screen</div>
-                <span className="absolute bottom-1 left-2 text-[11px] text-white/90">Screen</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-4 border-t border-stone-700/70 bg-stone-900/95 py-4">
+      <div className="flex items-center justify-center gap-4 border-t border-zinc-700/70 bg-zinc-900/95 py-4">
         <button
           onClick={toggleMute}
           className={`rounded-full p-3 transition-colors ${
@@ -933,12 +930,21 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
 
         <button
           onClick={toggleScreenShare}
+          disabled={!canShareScreen}
           className={`rounded-full p-3 transition-colors ${
             isScreenSharing
               ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-              : 'bg-slate-700 text-white hover:bg-slate-600'
+              : canShareScreen
+                ? 'bg-slate-700 text-white hover:bg-slate-600'
+                : 'cursor-not-allowed bg-slate-700/50 text-slate-400'
           }`}
-          title={isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+          title={
+            canShareScreen
+              ? isScreenSharing
+                ? 'Stop Sharing'
+                : 'Share Screen'
+              : 'Screen share is unavailable on this mobile browser'
+          }
         >
           <MonitorUp className="h-5 w-5" />
         </button>

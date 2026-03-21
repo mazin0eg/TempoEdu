@@ -16,9 +16,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const loggedInUser = await login(email, password);
       toast.success('Welcome back!');
-      navigate('/dashboard');
+      navigate(loggedInUser.role === 'admin' ? '/admin' : '/dashboard');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Login failed');
     } finally {

@@ -14,13 +14,13 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (data: {
     firstName: string;
     lastName: string;
     email: string;
     password: string;
-  }) => Promise<void>;
+  }) => Promise<User>;
   logout: () => void;
   updateUser: (user: User) => void;
 }
@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const { data } = await authApi.login({ email, password });
     saveAuth(data.data.user, data.data.accessToken);
+    return data.data.user;
   };
 
   const register = async (registerData: {
@@ -61,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }) => {
     const { data } = await authApi.register(registerData);
     saveAuth(data.data.user, data.data.accessToken);
+    return data.data.user;
   };
 
   const updateUser = (updatedUser: User) => {

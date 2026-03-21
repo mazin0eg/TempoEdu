@@ -73,6 +73,14 @@ export default function Navbar() {
           >
             My Skills
           </Link>
+          {user?.role === 'admin' && (
+            <Link
+              to="/admin"
+              className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors"
+            >
+              Admin
+            </Link>
+          )}
         </div>
 
         {/* Right side */}
@@ -148,6 +156,11 @@ export default function Navbar() {
             <Link to="/my-skills" className="text-sm font-medium text-blue-900" onClick={() => setMobileOpen(false)}>
               My Skills
             </Link>
+            {user?.role === 'admin' && (
+              <Link to="/admin" className="text-sm font-medium text-blue-900" onClick={() => setMobileOpen(false)}>
+                Admin
+              </Link>
+            )}
             <Link to="/chat" className="text-sm font-medium text-blue-900" onClick={() => setMobileOpen(false)}>
               Chat {unreadChat > 0 && `(${unreadChat})`}
             </Link>

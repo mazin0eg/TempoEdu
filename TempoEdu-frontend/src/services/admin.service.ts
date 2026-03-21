@@ -1,5 +1,5 @@
 import api from '../lib/api';
-import type { ApiResponse, DashboardStats, User } from '../types';
+import type { ApiResponse, DashboardStats, Session, User } from '../types';
 
 export const adminApi = {
   getDashboard: () =>
@@ -17,4 +17,12 @@ export const adminApi = {
     api.patch<ApiResponse<User>>(`/admin/users/${id}/unsuspend`),
 
   deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
+
+  getSkillsByCategory: () =>
+    api.get<ApiResponse<Record<string, number>>>('/admin/skills/categories'),
+
+  getRecentSessions: (limit = 25) =>
+    api.get<ApiResponse<Session[]>>('/admin/sessions/recent', {
+      params: { limit },
+    }),
 };

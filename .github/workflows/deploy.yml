@@ -14,6 +14,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate required secrets
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          set -e
+          [ -n "$DO_HOST" ] || (echo "Missing secret: DO_HOST" && exit 1)
+          [ -n "$DO_USER" ] || (echo "Missing secret: DO_USER" && exit 1)
+          [ -n "$DO_SSH_KEY" ] || (echo "Missing secret: DO_SSH_KEY" && exit 1)
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -21,15 +32,44 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           port: ${{ secrets.DO_PORT || '22' }}
+          script_stop: true
           script: |
-            set -e
+            set -eu
 
             APP_DIR="${{ secrets.APP_DIR }}"
             if [ -z "$APP_DIR" ]; then
               APP_DIR="$HOME/TempoEdu"
             fi
 
+            echo "Deploying in: $APP_DIR"
+
+            if [ ! -d "$APP_DIR" ]; then
+              echo "APP_DIR does not exist on server: $APP_DIR"
+              exit 1
+            fi
+
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "Docker is not installed on server"
+              exit 1
+            fi
+
+            if ! docker compose version >/dev/null 2>&1; then
+              echo "Docker Compose plugin is missing on server"
+              exit 1
+            fi
+
             cd "$APP_DIR"
+
+            if [ ! -d .git ]; then
+              echo "APP_DIR is not a git repository: $APP_DIR"
+              exit 1
+            fi
+
+            if [ ! -f docker-compose.prod.yml ]; then
+              echo "Missing docker-compose.prod.yml in $APP_DIR"
+              exit 1
+            fi
+
             git fetch --all
             git reset --hard origin/main
 
@@ -38,6 +78,7 @@ jobs:
               exit 1
             fi
 
+            echo "Building and starting containers..."
             docker compose --env-file .env.prod -f docker-compose.prod.yml build --pull
             docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
             docker image prune -f

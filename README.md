@@ -69,6 +69,74 @@ docker compose build
 docker compose up -d
 ```
 
+### Production Deploy (Recommended For VPS)
+
+Use the optimized production stack at the repository root:
+
+```bash
+cp .env.prod.example .env.prod
+# Edit .env.prod and set JWT_SECRET + CORS_ORIGIN
+
+docker compose --env-file .env.prod -f docker-compose.prod.yml build
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+```
+
+Useful production operations:
+
+```bash
+# Check service status and healthchecks
+docker compose --env-file .env.prod -f docker-compose.prod.yml ps
+
+# Follow logs
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f
+
+# Pull down safely
+docker compose --env-file .env.prod -f docker-compose.prod.yml down
+```
+
+### Daily Mongo Backups (Automatic)
+
+The production compose stack includes a `mongo-backup` cron container.
+
+- Schedule: daily at `03:15` server time
+- Storage: Docker volume `mongobackups`
+- Retention: controlled by `BACKUP_RETENTION_DAYS` in `.env.prod`
+
+Check backup files:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec mongo-backup ls -lah /backups
+```
+
+### Droplet Security Checklist
+
+See full guide in [docs/deployment-hardening.md](docs/deployment-hardening.md) for:
+
+- UFW firewall rules
+- fail2ban setup
+- SSH hardening
+- backup restore commands
+
+### GitHub Actions Auto-Deploy
+
+Workflow file: `.github/workflows/deploy.yml`
+
+It deploys automatically on push to `main` (or manual trigger), via SSH.
+
+Required GitHub repository secrets:
+
+- `DO_HOST`: droplet IP or hostname
+- `DO_USER`: SSH user
+- `DO_SSH_KEY`: private SSH key
+- `DO_PORT`: optional SSH port (default 22)
+- `APP_DIR`: optional app directory on server (default `$HOME/TempoEdu`)
+
+Server requirements for deploy workflow:
+
+1. Repository already cloned on server in `APP_DIR`
+2. `.env.prod` present on server (never committed)
+3. Docker + Docker Compose installed
+
 ### Run locally
 
 ```bash

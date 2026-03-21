@@ -1,0 +1,2 @@
+# Daily Mongo backup at 03:15 server time
+15 3 * * * /usr/local/bin/backup.sh >> /var/log/cron.log 2>&1

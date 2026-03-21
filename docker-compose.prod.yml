@@ -80,6 +80,11 @@ services:
       args:
         VITE_API_URL: /api
         VITE_SOCKET_URL: ''
+        VITE_STUN_URLS: ${VITE_STUN_URLS:-}
+        VITE_TURN_URLS: ${VITE_TURN_URLS:-}
+        VITE_TURN_USERNAME: ${VITE_TURN_USERNAME:-}
+        VITE_TURN_CREDENTIAL: ${VITE_TURN_CREDENTIAL:-}
+        VITE_FORCE_TURN_RELAY: ${VITE_FORCE_TURN_RELAY:-false}
     restart: always
     ports:
       - "80:80"

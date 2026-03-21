@@ -15,6 +15,43 @@ import {
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
 
+function parseIceUrls(raw?: string): string[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function buildIceConfig(): RTCConfiguration {
+  const stunUrls = parseIceUrls(import.meta.env.VITE_STUN_URLS) || [];
+  const turnUrls = parseIceUrls(import.meta.env.VITE_TURN_URLS) || [];
+  const turnUsername = import.meta.env.VITE_TURN_USERNAME || '';
+  const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL || '';
+  const forceRelay = import.meta.env.VITE_FORCE_TURN_RELAY === 'true';
+
+  const defaultStuns = ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'];
+
+  const iceServers: RTCIceServer[] = [];
+  const effectiveStunUrls = stunUrls.length > 0 ? stunUrls : defaultStuns;
+  if (effectiveStunUrls.length > 0) {
+    iceServers.push({ urls: effectiveStunUrls });
+  }
+
+  if (turnUrls.length > 0) {
+    iceServers.push({
+      urls: turnUrls,
+      username: turnUsername,
+      credential: turnCredential,
+    });
+  }
+
+  return {
+    iceServers,
+    iceTransportPolicy: forceRelay ? 'relay' : 'all',
+  };
+}
+
 /* ──────── sound helpers (Web Audio API — no files needed) ──────── */
 
 let audioCtx: AudioContext | null = null;
@@ -41,12 +78,7 @@ function playOffSound() { playTone(784, 0.12); setTimeout(() => playTone(523, 0.
 function playScreenShareStart() { playTone(660, 0.1); setTimeout(() => playTone(880, 0.1), 70); setTimeout(() => playTone(1100, 0.15), 140); }
 function playScreenShareStop()  { playTone(880, 0.1); setTimeout(() => playTone(660, 0.1), 70); setTimeout(() => playTone(440, 0.15), 140); }
 
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
-};
+const ICE_SERVERS: RTCConfiguration = buildIceConfig();
 
 interface VideoRoomProps {
   roomId: string;
@@ -165,6 +197,24 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
 
       pc.onconnectionstatechange = () => {
         setConnectionState(pc.connectionState);
+      };
+
+      pc.oniceconnectionstatechange = async () => {
+        if (pc.iceConnectionState !== 'failed') return;
+        const targetId = remoteUserIdRef.current ?? targetUserId;
+        if (!targetId || makingOfferRef.current) return;
+
+        try {
+          makingOfferRef.current = true;
+          await pc.setLocalDescription(await pc.createOffer({ iceRestart: true }));
+          socketRef.current?.emit('offer', {
+            roomId,
+            targetUserId: targetId,
+            sdp: pc.localDescription,
+          });
+        } finally {
+          makingOfferRef.current = false;
+        }
       };
 
       // Handle renegotiation (needed when adding/removing screen share track)

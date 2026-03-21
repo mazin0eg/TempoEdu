@@ -208,6 +208,12 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
     let mounted = true;
 
     const init = async () => {
+      if (!token) {
+        setConnectionState('disconnected');
+        setMediaError('Session expired. Please log in again, then rejoin the call.');
+        return;
+      }
+
       // 1. Try to get local media, but do not block signaling if it fails.
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -237,7 +243,24 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       });
       socketRef.current = socket;
 
+      socket.on('connect_error', (error) => {
+        if (!mounted) return;
+        setConnectionState('disconnected');
+        setMediaError(`Signaling connection failed: ${error.message}`);
+        console.error('WebRTC socket connect_error', error);
+      });
+
+      socket.on('disconnect', (reason) => {
+        if (!mounted) return;
+        if (reason !== 'io client disconnect') {
+          setConnectionState('disconnected');
+        }
+      });
+
       socket.on('connect', () => {
+        setMediaError((current) =>
+          current?.startsWith('Signaling connection failed') ? null : current,
+        );
         socket.emit('joinRoom', { roomId });
       });
 
@@ -273,6 +296,36 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         // Also try offering from existing participant to avoid deadlocks.
         void startOffer(userId);
       });
+
+      socket.on(
+        'roomState',
+        ({ users }: { roomId: string; users: string[] }) => {
+          if (!mounted) return;
+
+          const myId = user?._id ?? '';
+          const peerId = users.find((id) => id !== myId) ?? null;
+
+          if (!peerId) {
+            setRemoteUserId(null);
+            remoteUserIdRef.current = null;
+            return;
+          }
+
+          if (remoteUserIdRef.current !== peerId) {
+            setRemoteUserId(peerId);
+            remoteUserIdRef.current = peerId;
+          }
+
+          politePeerRef.current = myId > peerId;
+          setConnectionState('connecting');
+
+          if (!pcRef.current) {
+            createPeerConnection(peerId);
+          }
+
+          void startOffer(peerId);
+        },
+      );
 
       // Receive offer → create answer
       socket.on(

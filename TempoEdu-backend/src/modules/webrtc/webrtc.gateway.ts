@@ -79,6 +79,10 @@ export class WebrtcGateway
         client.to(`room:${roomId}`).emit('userLeft', {
           userId: client.userId,
         });
+        this.server.to(`room:${roomId}`).emit('roomState', {
+          roomId,
+          users: [...members],
+        });
         if (members.size === 0) {
           this.rooms.delete(roomId);
         }
@@ -115,6 +119,12 @@ export class WebrtcGateway
     // Tell existing members a new user joined
     client.to(`room:${roomId}`).emit('userJoined', { userId });
 
+    // Send authoritative room state to everyone to avoid client desync.
+    this.server.to(`room:${roomId}`).emit('roomState', {
+      roomId,
+      users: [...members],
+    });
+
     this.logger.log(`User ${userId} joined room ${roomId}`);
   }
 
@@ -131,6 +141,10 @@ export class WebrtcGateway
     const members = this.rooms.get(roomId);
     if (members) {
       members.delete(userId);
+      this.server.to(`room:${roomId}`).emit('roomState', {
+        roomId,
+        users: [...members],
+      });
       if (members.size === 0) {
         this.rooms.delete(roomId);
       }

@@ -138,7 +138,7 @@ export default function CertificatePage() {
             <div className="flex items-center gap-3">
               <BrandLogo showText={false} />
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">TempoEdu Platform</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">EducateWithMe Platform</p>
                 <h1 className="font-serif text-2xl font-bold text-gray-900">Certificate of Achievement</h1>
               </div>
             </div>
@@ -178,7 +178,7 @@ export default function CertificatePage() {
               <p className="font-mono text-sm font-semibold text-gray-900">{data.certificateCode}</p>
             </div>
             <div className="text-right">
-              <p className="font-serif text-2xl text-gray-800">TempoEdu</p>
+              <p className="font-serif text-2xl text-gray-800">EducateWithMe</p>
               <p className="-mt-1 text-xs uppercase tracking-[0.2em] text-gray-500">Official Platform Signature</p>
             </div>
           </div>
@@ -229,7 +229,7 @@ export default function CertificatePage() {
                 </svg>
                 <div>
                   <div style={{ fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#4b5f7c' }}>
-                    TempoEdu Platform
+                    EducateWithMe Platform
                   </div>
                   <div style={{ fontSize: '30px', fontWeight: 800, color: '#0f2b54' }}>
                     Certificate of Achievement
@@ -289,7 +289,7 @@ export default function CertificatePage() {
                 <div style={{ marginTop: '4px', fontFamily: 'monospace', fontWeight: 700 }}>{data.certificateCode}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '30px', fontWeight: 700, color: '#1a365f' }}>TempoEdu</div>
+                <div style={{ fontSize: '30px', fontWeight: 700, color: '#1a365f' }}>EducateWithMe</div>
                 <div style={{ marginTop: '-2px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#5d6b80' }}>
                   Official Platform Signature
                 </div>

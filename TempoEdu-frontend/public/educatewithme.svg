@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="EducateWithMe logo">
+  <rect x="2" y="2" width="44" height="44" rx="12" fill="#0f4fa8"/>
+  <path d="M10 29C14 21 22 18 38 18" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  <path d="M10 35C16 29 24 26 38 26" stroke="#7fc3ff" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="35" cy="34" r="4" fill="#ffffff"/>
+</svg>

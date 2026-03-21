@@ -22,6 +22,18 @@ interface AuthenticatedSocket extends Socket {
   userId?: string;
 }
 
+function getCandidateType(candidateLine?: string):
+  | 'host'
+  | 'srflx'
+  | 'relay'
+  | 'prflx'
+  | 'unknown' {
+  if (!candidateLine) return 'unknown';
+  const match = candidateLine.match(/ typ (host|srflx|relay|prflx) /i);
+  if (!match) return 'unknown';
+  return match[1].toLowerCase() as 'host' | 'srflx' | 'relay' | 'prflx';
+}
+
 @WebSocketGateway({
   cors: {
     origin: wsCorsOrigin,
@@ -220,6 +232,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       sdp: RTCSessionDescriptionInit;
     },
   ): void {
+    if ((client.userId || '') > data.targetUserId) {
+      this.logger.log(
+        `offer dropped (glare guard) ${client.userId} -> ${data.targetUserId} in room ${data.roomId}`,
+      );
+      return;
+    }
+
     const targetSocketId = this.connectedUsers.get(data.targetUserId);
     this.logger.log(
       `offer ${client.userId} -> ${data.targetUserId} in room ${data.roomId}`,
@@ -265,8 +284,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ): void {
     const targetSocketId = this.connectedUsers.get(data.targetUserId);
+    const type = getCandidateType(data.candidate?.candidate);
     this.logger.log(
-      `iceCandidate ${client.userId} -> ${data.targetUserId} in room ${data.roomId}`,
+      `iceCandidate(${type}) ${client.userId} -> ${data.targetUserId} in room ${data.roomId}`,
     );
     if (targetSocketId) {
       this.server.to(targetSocketId).emit('iceCandidate', {

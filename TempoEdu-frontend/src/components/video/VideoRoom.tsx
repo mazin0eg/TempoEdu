@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
+import BrandLogo from '../common/BrandLogo';
 import {
   Mic,
   MicOff,
@@ -131,6 +132,12 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [callDurationSec, setCallDurationSec] = useState(0);
   const [mediaError, setMediaError] = useState<string | null>(null);
+  const [focusedTile, setFocusedTile] = useState<'remote' | 'local' | 'screen'>(
+    'remote',
+  );
+  const [dockPosition, setDockPosition] = useState({ x: 24, y: 24 });
+  const [isDraggingDock, setIsDraggingDock] = useState(false);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
 
   const shouldInitiateOffer = useCallback(
     (targetUserId: string) => {
@@ -264,6 +271,32 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   useEffect(() => {
     remoteUserIdRef.current = remoteUserId;
   }, [remoteUserId]);
+
+  useEffect(() => {
+    if (!remoteScreenSharing && focusedTile === 'screen') {
+      setFocusedTile('remote');
+    }
+  }, [focusedTile, remoteScreenSharing]);
+
+  useEffect(() => {
+    const onMove = (event: MouseEvent) => {
+      if (!isDraggingDock) return;
+      const nextX = Math.max(12, window.innerWidth - event.clientX - dragOffsetRef.current.x);
+      const nextY = Math.max(12, window.innerHeight - event.clientY - dragOffsetRef.current.y - 96);
+      setDockPosition({ x: nextX, y: nextY });
+    };
+
+    const onUp = () => {
+      setIsDraggingDock(false);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [isDraggingDock]);
 
   /* ──────── main effect ──────── */
 
@@ -713,6 +746,17 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           : connectionState;
 
   const showScreenView = remoteScreenSharing;
+  const showRemoteMain = focusedTile === 'remote' || (!showScreenView && focusedTile === 'screen');
+  const showLocalMain = focusedTile === 'local';
+  const showScreenMain = showScreenView && focusedTile === 'screen';
+
+  const beginDockDrag = (event: ReactMouseEvent<HTMLDivElement>) => {
+    setIsDraggingDock(true);
+    dragOffsetRef.current = {
+      x: event.currentTarget.getBoundingClientRect().right - event.clientX,
+      y: event.currentTarget.getBoundingClientRect().bottom - event.clientY,
+    };
+  };
   const formatDuration = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -730,10 +774,11 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   };
 
   return (
-    <div className="flex h-full flex-col bg-slate-900">
+    <div className="flex h-full flex-col bg-stone-900">
       {/* Status bar */}
-      <div className="flex items-center justify-between border-b border-slate-700/70 bg-slate-800/95 px-4 py-2.5">
+      <div className="flex items-center justify-between border-b border-stone-700/80 bg-stone-900/95 px-4 py-2.5">
         <div className="flex items-center gap-2">
+          <BrandLogo compact showText={false} className="mr-1" />
           <span
             className={`h-2.5 w-2.5 rounded-full ${
               connectionState === 'connected'
@@ -743,10 +788,10 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
                   : 'bg-red-500'
             }`}
           />
-          <span className="text-sm text-slate-200">{statusLabel}</span>
+          <span className="text-sm text-stone-100">{statusLabel}</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-700/50 px-2.5 py-1 text-xs text-slate-200">
+          <span className="flex items-center gap-1.5 rounded-full border border-amber-200/30 bg-amber-50/10 px-2.5 py-1 text-xs text-amber-100">
             <Clock3 className="h-3.5 w-3.5" />
             <span className="tabular-nums">{formatDuration(callDurationSec)}</span>
           </span>
@@ -755,7 +800,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
               <MonitorUp className="h-3.5 w-3.5" /> Sharing your screen
             </span>
           )}
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-stone-300">
             Room: {roomId.slice(0, 8)}...
           </span>
         </div>
@@ -768,104 +813,96 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       )}
 
       {/* Video area */}
-      <div className="relative flex flex-1 overflow-hidden bg-linear-to-b from-slate-900 to-slate-950 p-2">
-        {showScreenView ? (
-          /* ── Screen share layout: screen main + webcams sidebar ── */
-          <>
-            {/* Screen share — main area */}
+      <div className="relative flex flex-1 overflow-hidden bg-linear-to-b from-stone-900 via-zinc-900 to-stone-950 p-3">
+        <div
+          ref={screenContainerRef}
+          className="relative flex w-full items-center justify-center overflow-hidden rounded-2xl border border-stone-700/70 bg-black/80"
+        >
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className={`h-full w-full object-cover ${showRemoteMain ? 'block' : 'hidden'}`}
+          />
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`h-full w-full object-cover transform-[scaleX(1)] ${showLocalMain ? 'block' : 'hidden'}`}
+          />
+          <video
+            ref={remoteScreenRef}
+            autoPlay
+            playsInline
+            className={`h-full w-full object-contain ${showScreenMain ? 'block' : 'hidden'}`}
+          />
+
+          {!remoteUserId && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+              <div className="text-center">
+                <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-amber-400 border-t-transparent" />
+                <p className="text-lg text-stone-100">Waiting for participant...</p>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={toggleFullscreen}
+            className="absolute right-3 top-3 rounded-lg border border-stone-500/70 bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          >
+            {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+          </button>
+
+          <div
+            className="absolute z-20 flex gap-2 rounded-xl border border-stone-500/60 bg-stone-950/70 p-2 shadow-2xl backdrop-blur"
+            style={{ right: `${dockPosition.x}px`, bottom: `${dockPosition.y}px` }}
+          >
             <div
-              ref={screenContainerRef}
-              className="relative flex items-center justify-center rounded-xl border border-slate-700/70 bg-black p-2"
-              style={{ flex: 1 }}
+              onMouseDown={beginDockDrag}
+              className="absolute -top-2 left-2 cursor-grab rounded-full border border-stone-500/70 bg-stone-800/90 px-2 py-0.5 text-[10px] text-stone-200"
             >
-              <video
-                ref={remoteScreenRef}
-                autoPlay
-                playsInline
-                className="max-h-full max-w-full rounded-xl object-contain"
-              />
-              {/* Fullscreen toggle */}
+              drag
+            </div>
+
+            <button
+              onClick={() => setFocusedTile('remote')}
+              className={`relative overflow-hidden rounded-lg border ${
+                focusedTile === 'remote' ? 'border-amber-300' : 'border-stone-600'
+              }`}
+            >
+              <div className="flex h-20 w-32 items-center justify-center bg-stone-900 text-xs text-stone-200">Participant</div>
+              <span className="absolute bottom-1 left-2 text-[11px] text-white/90">Participant</span>
+            </button>
+
+            <button
+              onClick={() => setFocusedTile('local')}
+              className={`relative overflow-hidden rounded-lg border ${
+                focusedTile === 'local' ? 'border-amber-300' : 'border-stone-600'
+              }`}
+            >
+              <div className="flex h-20 w-32 items-center justify-center bg-stone-900 text-xs text-stone-200">You</div>
+              <span className="absolute bottom-1 left-2 text-[11px] text-white/90">You</span>
+            </button>
+
+            {showScreenView && (
               <button
-                onClick={toggleFullscreen}
-                className="absolute top-3 right-3 rounded-lg bg-black/60 p-2 text-white transition-colors hover:bg-black/80"
-                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                onClick={() => setFocusedTile('screen')}
+                className={`relative overflow-hidden rounded-lg border ${
+                  focusedTile === 'screen' ? 'border-amber-300' : 'border-stone-600'
+                }`}
               >
-                {isFullscreen ? (
-                  <Minimize className="h-5 w-5" />
-                ) : (
-                  <Maximize className="h-5 w-5" />
-                )}
+                <div className="flex h-20 w-32 items-center justify-center bg-stone-900 text-xs text-stone-200">Screen</div>
+                <span className="absolute bottom-1 left-2 text-[11px] text-white/90">Screen</span>
               </button>
-            </div>
-
-            {/* Sidebar: remote webcam + local webcam */}
-            <div className="ml-2 flex w-60 flex-col gap-2 rounded-xl border border-slate-700/70 bg-slate-800/85 p-2">
-              <div className="relative overflow-hidden rounded-lg border border-slate-700">
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className="aspect-video w-full bg-slate-900 object-cover"
-                />
-                <div className="absolute bottom-1 left-2 text-xs text-white/80">
-                  Participant
-                </div>
-              </div>
-              {/* Local webcam */}
-              <div className="relative overflow-hidden rounded-lg border border-slate-700">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="aspect-video w-full bg-slate-900 object-cover"
-                />
-                <div className="absolute bottom-1 left-2 text-xs text-white/80">
-                  {user?.firstName ?? 'You'}
-                </div>
-              </div>
-            </div>
-          </>
-        ) : (
-          /* ── Normal layout: remote full + local PIP ── */
-          <div className="relative flex flex-1 items-center justify-center p-4">
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="max-h-full max-w-full rounded-2xl border border-slate-700/70 bg-slate-800 object-cover"
-            />
-
-            {!remoteUserId && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
-                  <p className="text-lg text-gray-400">
-                    Waiting for other participant to join...
-                  </p>
-                </div>
-              </div>
             )}
-
-            {/* Local video (PIP) */}
-            <div className="absolute bottom-6 right-6 w-52 overflow-hidden rounded-xl border-2 border-slate-700 shadow-lg shadow-black/30">
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="aspect-video w-full bg-slate-800 object-cover"
-              />
-              <div className="absolute bottom-1 left-2 text-xs text-white/80">
-                {user?.firstName ?? 'You'}
-              </div>
-            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-4 border-t border-slate-700/70 bg-slate-800/95 py-4">
+      <div className="flex items-center justify-center gap-4 border-t border-stone-700/70 bg-stone-900/95 py-4">
         <button
           onClick={toggleMute}
           className={`rounded-full p-3 transition-colors ${

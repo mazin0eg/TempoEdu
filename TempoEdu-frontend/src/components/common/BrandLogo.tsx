@@ -38,10 +38,10 @@ export default function BrandLogo({
 
       {showText && (
         <div className="leading-none">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-blue-700">
-            TempoEdu
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-blue-700">
+            EducateWithMe
           </p>
-          <p className="text-xl font-extrabold text-blue-950">FlowLearn</p>
+          <p className="text-xl font-extrabold text-blue-950">Live Exchange</p>
         </div>
       )}
     </div>

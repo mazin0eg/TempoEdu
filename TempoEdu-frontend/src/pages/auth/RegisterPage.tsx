@@ -36,7 +36,7 @@ export default function RegisterPage() {
         email: form.email,
         password: form.password,
       });
-      toast.success('Account created! Welcome to TempoEdu');
+      toast.success('Account created! Welcome to EducateWithMe');
       navigate('/dashboard');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Registration failed');
@@ -51,7 +51,7 @@ export default function RegisterPage() {
         <div className="mb-8 text-center">
           <BrandLogo className="mx-auto mb-4 w-fit" />
           <h1 className="text-3xl font-bold text-gray-900">Create account</h1>
-          <p className="mt-2 text-gray-500">Join TempoEdu and start exchanging skills</p>
+          <p className="mt-2 text-gray-500">Join EducateWithMe and start exchanging skills</p>
         </div>
 
         <form

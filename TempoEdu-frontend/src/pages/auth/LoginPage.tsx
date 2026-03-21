@@ -33,7 +33,7 @@ export default function LoginPage() {
         <div className="mb-8 text-center">
           <BrandLogo className="mx-auto mb-4 w-fit" />
           <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>
-          <p className="mt-2 text-gray-500">Sign in to your TempoEdu account</p>
+          <p className="mt-2 text-gray-500">Sign in to your EducateWithMe account</p>
         </div>
 
         <form

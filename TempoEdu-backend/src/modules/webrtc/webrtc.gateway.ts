@@ -50,6 +50,7 @@ export class WebrtcGateway
     try {
       const token = client.handshake.auth.token?.replace('Bearer ', '');
       if (!token) {
+        this.logger.warn('WebRTC connection rejected: missing token');
         client.disconnect();
         return;
       }
@@ -60,6 +61,7 @@ export class WebrtcGateway
 
       this.logger.log(`WebRTC client connected: ${payload.sub}`);
     } catch {
+      this.logger.warn('WebRTC connection rejected: invalid token');
       client.disconnect();
     }
   }

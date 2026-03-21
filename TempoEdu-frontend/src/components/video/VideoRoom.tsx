@@ -85,6 +85,7 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
   const [connectionState, setConnectionState] = useState<string>('connecting');
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [callDurationSec, setCallDurationSec] = useState(0);
+  const [mediaError, setMediaError] = useState<string | null>(null);
 
   const startOffer = useCallback(
     async (targetUserId: string) => {
@@ -207,14 +208,26 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
     let mounted = true;
 
     const init = async () => {
-      // 1. Get local media
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+      // 1. Try to get local media, but do not block signaling if it fails.
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        localStreamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+        setMediaError(null);
+      } catch (error) {
+        localStreamRef.current = new MediaStream();
+        const notSecureContext = !window.isSecureContext;
+        setMediaError(
+          notSecureContext
+            ? 'Camera/mic are blocked on non-secure pages. Open the call on HTTPS.'
+            : 'Could not access camera/mic. Check browser permissions and try again.',
+        );
+        console.error('Failed to initialize local media', error);
       }
 
       // 2. Connect to signaling server
@@ -626,6 +639,12 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
           </span>
         </div>
       </div>
+
+      {mediaError && (
+        <div className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
+          {mediaError}
+        </div>
+      )}
 
       {/* Video area */}
       <div className="relative flex flex-1 overflow-hidden bg-linear-to-b from-slate-900 to-slate-950 p-2">

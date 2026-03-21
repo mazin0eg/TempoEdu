@@ -12,13 +12,19 @@ import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
 
+const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const wsCorsOrigin =
+  rawCorsOrigin === '*'
+    ? true
+    : rawCorsOrigin.split(',').map((origin) => origin.trim());
+
 interface AuthenticatedSocket extends Socket {
   userId?: string;
 }
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: wsCorsOrigin,
     credentials: true,
   },
   namespace: '/chat',
@@ -40,8 +46,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
     try {
-      const token = client.handshake.auth.token?.replace('Bearer ', '');
+      const handshakeAuthToken =
+        typeof client.handshake.auth?.token === 'string'
+          ? client.handshake.auth.token
+          : '';
+      const queryToken =
+        typeof client.handshake.query?.token === 'string'
+          ? client.handshake.query.token
+          : '';
+      const headerAuth =
+        typeof client.handshake.headers?.authorization === 'string'
+          ? client.handshake.headers.authorization
+          : '';
+
+      const tokenSource = handshakeAuthToken || queryToken || headerAuth;
+      const token = tokenSource.replace('Bearer ', '').trim();
       if (!token) {
+        this.logger.warn('Socket connection rejected: missing token');
         client.disconnect();
         return;
       }
@@ -55,6 +76,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       this.logger.log(`Client connected: ${payload.sub}`);
     } catch {
+      this.logger.warn('Socket connection rejected: invalid token');
       client.disconnect();
     }
   }
@@ -199,6 +221,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ): void {
     const targetSocketId = this.connectedUsers.get(data.targetUserId);
+    this.logger.log(
+      `offer ${client.userId} -> ${data.targetUserId} in room ${data.roomId}`,
+    );
     if (targetSocketId) {
       this.server.to(targetSocketId).emit('offer', {
         sdp: data.sdp,
@@ -218,6 +243,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ): void {
     const targetSocketId = this.connectedUsers.get(data.targetUserId);
+    this.logger.log(
+      `answer ${client.userId} -> ${data.targetUserId} in room ${data.roomId}`,
+    );
     if (targetSocketId) {
       this.server.to(targetSocketId).emit('answer', {
         sdp: data.sdp,
@@ -237,6 +265,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ): void {
     const targetSocketId = this.connectedUsers.get(data.targetUserId);
+    this.logger.log(
+      `iceCandidate ${client.userId} -> ${data.targetUserId} in room ${data.roomId}`,
+    );
     if (targetSocketId) {
       this.server.to(targetSocketId).emit('iceCandidate', {
         candidate: data.candidate,

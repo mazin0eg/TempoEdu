@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { NextFunction, Request, Response } from 'express';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters';
 import { TransformInterceptor } from './common/interceptors';
@@ -19,6 +21,41 @@ async function bootstrap() {
   expressApp.disable('x-powered-by');
   app.enableShutdownHooks();
 
+  // Prevent oversized payload abuse.
+  app.use(json({ limit: '1mb' }));
+  app.use(urlencoded({ extended: true, limit: '1mb' }));
+
+  // Lightweight in-memory rate limiting to reduce brute-force and burst abuse.
+  const requestWindows = new Map<string, { count: number; resetAt: number }>();
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const now = Date.now();
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const path = req.path || '';
+
+    const isAuthPath = path.startsWith('/api/auth');
+    const windowMs = isAuthPath ? 10 * 60 * 1000 : 60 * 1000;
+    const maxRequests = isAuthPath ? 30 : 300;
+    const key = `${ip}:${isAuthPath ? 'auth' : 'global'}`;
+
+    const existing = requestWindows.get(key);
+    if (!existing || now > existing.resetAt) {
+      requestWindows.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    existing.count += 1;
+    if (existing.count > maxRequests) {
+      const retryAfterSeconds = Math.ceil((existing.resetAt - now) / 1000);
+      res.setHeader('Retry-After', retryAfterSeconds.toString());
+      return res.status(429).json({
+        statusCode: 429,
+        message: 'Too many requests. Please try again later.',
+      });
+    }
+
+    return next();
+  });
+
   // Global prefix
   app.setGlobalPrefix('api');
 
@@ -27,6 +64,9 @@ async function bootstrap() {
     'CORS_ORIGIN',
     'http://localhost:5173',
   );
+  if (isProduction && corsOrigin === '*') {
+    throw new Error('CORS_ORIGIN cannot be * in production');
+  }
   const corsOrigins =
     corsOrigin === '*'
       ? true

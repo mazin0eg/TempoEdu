@@ -7,6 +7,7 @@ import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters';
 import { TransformInterceptor } from './common/interceptors';
+import { AuthService } from './modules/auth/auth.service';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -108,7 +109,8 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('api/docs', app, document);
   }
-
+  const authService = app.get(AuthService);
+  await authService.ensureAdminFromEnv();
   // Start server
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);
@@ -117,6 +119,8 @@ async function bootstrap() {
   if (!isProduction) {
     logger.log(`Swagger docs at http://localhost:${port}/api/docs`);
   }
+
+  
 }
 
 bootstrap();

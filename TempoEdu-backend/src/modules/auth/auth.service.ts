@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -10,14 +11,66 @@ import * as bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { RegisterDto, LoginDto } from './dto';
 import { CreditsService } from '../credits/credits.service';
+import { Role } from '../../common/decorators/roles.decorator';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly jwtService: JwtService,
     private readonly creditsService: CreditsService,
   ) {}
+
+  async ensureAdminFromEnv(): Promise<void> {
+    const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    if (!email) {
+      return;
+    }
+
+    const existingUser = await this.userModel.findOne({ email });
+    if (existingUser) {
+      if (existingUser.role !== Role.ADMIN) {
+        existingUser.role = Role.ADMIN;
+        await existingUser.save();
+        this.logger.warn(`Promoted existing user to admin: ${email}`);
+      } else {
+        this.logger.log(`Admin user already configured: ${email}`);
+      }
+      return;
+    }
+
+    const password = process.env.ADMIN_PASSWORD?.trim();
+    if (!password) {
+      this.logger.warn(
+        `ADMIN_EMAIL is set (${email}) but no user exists and ADMIN_PASSWORD is missing. Skipping admin creation.`,
+      );
+      return;
+    }
+
+    if (password.length < 8) {
+      this.logger.warn(
+        `ADMIN_PASSWORD is too short (minimum 8 characters). Skipping admin creation.`,
+      );
+      return;
+    }
+
+    const firstName = process.env.ADMIN_FIRST_NAME?.trim() || 'System';
+    const lastName = process.env.ADMIN_LAST_NAME?.trim() || 'Admin';
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const admin = await this.userModel.create({
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+      role: Role.ADMIN,
+    });
+
+    await this.creditsService.grantInitialCredits(admin._id.toString());
+    this.logger.log(`Created admin user from env: ${email}`);
+  }
 
   async register(
     registerDto: RegisterDto,

@@ -15,7 +15,6 @@ export default function SkillsPage() {
   const [filters, setFilters] = useState<SkillFilters>({
     page: 1,
     limit: 12,
-    type: 'offer',
   });
   const [searchInput, setSearchInput] = useState('');
 
@@ -122,7 +121,7 @@ export default function SkillsPage() {
           </select>
           <button
             onClick={() => {
-              setFilters({ page: 1, limit: 12, type: 'offer' });
+              setFilters({ page: 1, limit: 12 });
               setSearchInput('');
             }}
             className="text-sm text-red-600 hover:text-red-700"

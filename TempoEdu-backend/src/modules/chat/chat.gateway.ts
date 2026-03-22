@@ -232,13 +232,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       sdp: RTCSessionDescriptionInit;
     },
   ): void {
-    if ((client.userId || '') > data.targetUserId) {
-      this.logger.log(
-        `offer dropped (glare guard) ${client.userId} -> ${data.targetUserId} in room ${data.roomId}`,
-      );
-      return;
-    }
-
     const targetSocketId = this.connectedUsers.get(data.targetUserId);
     this.logger.log(
       `offer ${client.userId} -> ${data.targetUserId} in room ${data.roomId}`,

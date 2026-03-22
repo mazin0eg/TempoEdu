@@ -201,6 +201,16 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         }
       };
 
+      pc.onicecandidateerror = (event) => {
+        console.error('ICE candidate error', {
+          address: event.address,
+          port: event.port,
+          url: event.url,
+          errorCode: event.errorCode,
+          errorText: event.errorText,
+        });
+      };
+
       pc.ontrack = (event) => {
         if (event.track.kind !== 'video') return;
 
@@ -248,10 +258,20 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
       };
 
       pc.onconnectionstatechange = () => {
+        console.log('Peer connection state:', pc.connectionState);
         setConnectionState(pc.connectionState);
       };
 
+      pc.onsignalingstatechange = () => {
+        console.log('Signaling state:', pc.signalingState);
+      };
+
+      pc.onicegatheringstatechange = () => {
+        console.log('ICE gathering state:', pc.iceGatheringState);
+      };
+
       pc.oniceconnectionstatechange = async () => {
+        console.log('ICE connection state:', pc.iceConnectionState);
         if (pc.iceConnectionState !== 'failed') return;
         const targetId = remoteUserIdRef.current ?? targetUserId;
         if (!targetId || makingOfferRef.current) return;
@@ -272,6 +292,18 @@ export default function VideoRoom({ roomId, onLeave }: VideoRoomProps) {
         localStreamRef.current.getTracks().forEach((track) => {
           pc.addTrack(track, localStreamRef.current!);
         });
+      }
+
+      // Ensure SDP still has recv media sections when local capture is unavailable.
+      const hasLocalAudio =
+        (localStreamRef.current?.getAudioTracks().length ?? 0) > 0;
+      const hasLocalVideo =
+        (localStreamRef.current?.getVideoTracks().length ?? 0) > 0;
+      if (!hasLocalAudio) {
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      }
+      if (!hasLocalVideo) {
+        pc.addTransceiver('video', { direction: 'recvonly' });
       }
 
       pcRef.current = pc;

@@ -67,9 +67,9 @@ export default function SkillsPage() {
             }
             className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none"
           >
+            <option value="">All</option>
             <option value="offer">Offers</option>
             <option value="request">Requests</option>
-            <option value="">All</option>
           </select>
           <button
             onClick={() => setShowFilters(!showFilters)}
